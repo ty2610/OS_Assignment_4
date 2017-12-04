@@ -24,12 +24,27 @@ struct CommandInput {
     int pageSize;
 }commandInput;
 
+struct MMUObject {
+    int pageNumber;
+    int frameNumber;
+    int pid;
+    int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+    string name;
+    string address;
+    int size;
+    string key;
+};
+
+struct MMUTable {
+    map<string, MMUObject> table;
+} mmuTable;
+
 struct Process {
     int pid;
     int code; //some number 2048 - 16384 bytes
     int globals; //some number 0-1024 bytes
     const int stack{65536}; //stack constant in bytes
-    VarMap nums;
+    //VarMap nums;
     bool active; //if the process has been terminated or not
 };//Process struct
 
@@ -44,6 +59,15 @@ void createProcess();
 int main(int argc, char *argv[]) {
     string input;
     int id = 1023;
+    MMUObject freeSpace;
+    freeSpace.name = "freeSpace";
+    freeSpace.pid = 0;
+    freeSpace.address = 0;
+    freeSpace.size = 67108864;
+    freeSpace.typeCode = 0;
+    freeSpace.key = freeSpace.name + to_string(freeSpace.pid);
+    //THIS INSERT IS NOT TESTED
+    mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
     srand( time( NULL ) );
     takeCommand(argc,argv);
     cout << "\nWelcome to the Memory Allocation Simulator! Using a page size of "<< commandInput.pageSize <<" bytes.\n"
@@ -65,6 +89,7 @@ int main(int argc, char *argv[]) {
         getline(cin,input);
 
         if(input == COMMAND_NAME_EXIT){
+            cout << "Goodbye" << endl;
             break;
         }else if (input == COMMAND_NAME_CREATE){
             createProcess();
@@ -87,32 +112,26 @@ bool isNumber(const string& s) {
 }
 
 void takeCommand(int argc, char *argv[]) {
-    string commandParam = "-p";
     if(argc > 1){
-        if(argc < 4){
-            if(string(argv[1]) == "-p") {
-                if(isNumber(string(argv[2]))) {
-                    int pageHolder = stoi(string(argv[2]));
-                    if(pageHolder>1023 && pageHolder<32769){
-                        //used link below to see if an integer is a power of 2
-                        //https://stackoverflow.com/questions/108318/whats-the-simplest-way-to-test-whether-a-number-is-a-power-of-2-in-c
-                        if((pageHolder & (pageHolder - 1)) == 0){
-                            commandInput.pageSize = pageHolder;
-                        } else {
-                            cout << "The page size must be a power of two" << endl;
-                            exit(0);
-                        }
+        if(argc < 3){
+            if(isNumber(string(argv[1]))) {
+                int pageHolder = stoi(string(argv[1]));
+                if(pageHolder>1023 && pageHolder<32769){
+                    //used link below to see if an integer is a power of 2
+                    //https://stackoverflow.com/questions/108318/whats-the-simplest-way-to-test-whether-a-number-is-a-power-of-2-in-c
+                    if((pageHolder & (pageHolder - 1)) == 0){
+                        commandInput.pageSize = pageHolder;
                     } else {
-                        cout << "The page size must be between 1024 and 32768" << endl;
-                        exit(1);
+                        cout << "The page size must be a power of two" << endl;
+                        exit(0);
                     }
                 } else {
-                    cout << "Your page number must be an integer" << endl;
-                    exit(2);
+                    cout << "The page size must be between 1024 and 32768" << endl;
+                    exit(1);
                 }
             } else {
-                cout << "You can only provide the -p argument" << endl;
-                exit(3);
+                cout << "Your page number must be an integer" << endl;
+                exit(2);
             }
         } else {
             cout << "You can only provide one argument" << endl;
@@ -131,6 +150,7 @@ void createProcess(){
     process->code = rand()% 14337 + 2048; //2048-16384
     process->globals= rand()% 1025; //0-1024
     process->active = true;
+
 
     cout << process->pid << endl;
 }
