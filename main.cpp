@@ -8,13 +8,6 @@
 
 using namespace std;
 
-struct VarMap {
-    map<string, char> cmap;
-    map<string, short> smap;
-    map<string, int> imap;
-    map<string, float> fmap;
-};//map struct
-
 struct MainInfo {
     uint8_t *mem = new uint8_t[67108864];
     int currentPID = 1024;
@@ -30,9 +23,13 @@ struct MMUObject {
     int pid;
     int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
     string name;
-    string address;
+    int address;
     int size;
     string key;
+};
+
+struct FrameTable {
+
 };
 
 struct MMUTable {
@@ -45,7 +42,6 @@ struct Process {
     int globals; //some number 0-1024 bytes
     const int stack{65536}; //stack constant in bytes
     //VarMap nums;
-    bool active; //if the process has been terminated or not
 };//Process struct
 
 const string COMMAND_NAME_EXIT = "exit";
@@ -55,6 +51,7 @@ const string COMMAND_LINE_BREAK = "";
 void takeCommand(int argc, char *argv[]);
 bool isNumber(const string& s);
 void createProcess();
+int findFreeSpace(int size);
 
 int main(int argc, char *argv[]) {
     string input;
@@ -149,8 +146,23 @@ void createProcess(){
     mainInfo.currentPID++;
     process->code = rand()% 14337 + 2048; //2048-16384
     process->globals= rand()% 1025; //0-1024
-    process->active = true;
+    MMUObject codeMMU;
+    codeMMU.pid = process->pid;
+    codeMMU.name = "TEXT";
 
 
     cout << process->pid << endl;
+}
+
+int findFreeSpaceMMU(int size, int pid) {
+    //found a map iterator
+    //https://stackoverflow.com/questions/26281979/c-loop-through-map
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.first.substr(0,9)=="freeSpace" && loc.second.size>=size) {
+
+        }
+    }
 }
