@@ -51,20 +51,11 @@ const string COMMAND_LINE_BREAK = "";
 void takeCommand(int argc, char *argv[]);
 bool isNumber(const string& s);
 void createProcess();
-int findFreeSpace(int size);
+string findFreeSpaceMMU(int size, int pid);
+void printMMU();
 
 int main(int argc, char *argv[]) {
     string input;
-    int id = 1023;
-    MMUObject freeSpace;
-    freeSpace.name = "freeSpace";
-    freeSpace.pid = 0;
-    freeSpace.address = 0;
-    freeSpace.size = 67108864;
-    freeSpace.typeCode = 0;
-    freeSpace.key = freeSpace.name + to_string(freeSpace.pid);
-    //THIS INSERT IS NOT TESTED
-    mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
     srand( time( NULL ) );
     takeCommand(argc,argv);
     cout << "\nWelcome to the Memory Allocation Simulator! Using a page size of "<< commandInput.pageSize <<" bytes.\n"
@@ -92,6 +83,11 @@ int main(int argc, char *argv[]) {
             createProcess();
         }else if (input == COMMAND_LINE_BREAK){
           //do nothing
+        } else if(input == "print mmu"){
+            //THIS IS PURELY FOR TESTING MMU PRINT
+            //THERE NEEDS TO BE BETTER INPUT MANAGEMENT FOR ALL THE PRINTS
+            printMMU();
+
         } else{
             cout << input << " :: invalid input" << endl;
         }
@@ -146,23 +142,84 @@ void createProcess(){
     mainInfo.currentPID++;
     process->code = rand()% 14337 + 2048; //2048-16384
     process->globals= rand()% 1025; //0-1024
+
+    MMUObject freeSpace;
+    freeSpace.name = "freeSpace";
+    freeSpace.pid = process->pid;
+    freeSpace.address = 0;
+    //arbitraury size, need 32 created threads to go over size
+    //this is temporary until file is implemented
+    //this number will need to increase until the collective free space
+    //is filled, in the physical memory and file
+    freeSpace.size = 2097152;
+    freeSpace.typeCode = 0;
+    freeSpace.key = to_string(freeSpace.pid) + freeSpace.name;
+    mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
+
     MMUObject codeMMU;
     codeMMU.pid = process->pid;
-    codeMMU.name = "TEXT";
+    codeMMU.name = "<TEXT>";
+    codeMMU.size = process->code;
+    codeMMU.typeCode = 0;
+    codeMMU.key = to_string(codeMMU.pid) + codeMMU.name;
+    string freeSpaceMMUKey = findFreeSpaceMMU(codeMMU.size, codeMMU.pid);
+    codeMMU.address = mmuTable.table.at(freeSpaceMMUKey).address;
+    mmuTable.table.at(freeSpaceMMUKey).address = codeMMU.address+codeMMU.size;
+    mmuTable.table.at(freeSpaceMMUKey).size = mmuTable.table.at(freeSpaceMMUKey).size - codeMMU.size;
 
+    mmuTable.table.insert(std::pair<string, MMUObject>(codeMMU.key,codeMMU));
+
+    MMUObject globalMMU;
+    globalMMU.pid = process->pid;
+    globalMMU.name = "<GLOBALS>";
+    globalMMU.size = process->globals;
+    globalMMU.typeCode = 0;
+    globalMMU.key = to_string(globalMMU.pid) + globalMMU.name;
+    freeSpaceMMUKey = findFreeSpaceMMU(globalMMU.size, globalMMU.pid);
+    globalMMU.address = mmuTable.table.at(freeSpaceMMUKey).address;
+    mmuTable.table.at(freeSpaceMMUKey).address = globalMMU.address+globalMMU.size;
+    mmuTable.table.at(freeSpaceMMUKey).size = mmuTable.table.at(freeSpaceMMUKey).size - globalMMU.size;
+
+    mmuTable.table.insert(std::pair<string, MMUObject>(globalMMU.key,globalMMU));
+
+    MMUObject stackMMU;
+    stackMMU.pid = process->pid;
+    stackMMU.name = "<STACK>";
+    stackMMU.size = process->stack;
+    stackMMU.typeCode = 0;
+    stackMMU.key = to_string(stackMMU.pid) + stackMMU.name;
+    freeSpaceMMUKey = findFreeSpaceMMU(stackMMU.size, stackMMU.pid);
+    stackMMU.address = mmuTable.table.at(freeSpaceMMUKey).address;
+    mmuTable.table.at(freeSpaceMMUKey).address = stackMMU.address+stackMMU.size;
+    mmuTable.table.at(freeSpaceMMUKey).size = mmuTable.table.at(freeSpaceMMUKey).size - stackMMU.size;
+
+    mmuTable.table.insert(std::pair<string, MMUObject>(stackMMU.key,stackMMU));
 
     cout << process->pid << endl;
 }
 
-int findFreeSpaceMMU(int size, int pid) {
+string findFreeSpaceMMU(int size, int pid) {
     //found a map iterator
     //https://stackoverflow.com/questions/26281979/c-loop-through-map
     for (auto const& loc : mmuTable.table)
     {
         //loc.first string (key)
         //loc.second string's value
-        if(loc.first.substr(0,9)=="freeSpace" && loc.second.size>=size) {
+        if(loc.second.name=="freeSpace" && loc.second.size>=size && pid == loc.second.pid) {
+            return loc.first;
+        }
+    }
+}
 
+void printMMU() {
+    printf("|%4s  | %13s | %12s | %4s \n", "PID", "Variable Name", "Virtual Addr", "Size");
+    printf("+------+---------------+--------------+------------\n");
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.second.name!="freeSpace") {
+            printf("| %4d | %13s | %12s | %10d \n", loc.second.pid, loc.second.name.c_str(), to_string(loc.second.address).c_str(), loc.second.size);
         }
     }
 }
