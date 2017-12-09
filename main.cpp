@@ -72,6 +72,7 @@ void terminatePID(int pid);
 void createPage(Process *process);
 void pageHandler(Process *process, int data);
 void printPage();
+bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>& b);
 
 int main(int argc, char *argv[]) {
     string input;
@@ -323,14 +324,27 @@ string findFreeSpaceMMU(int size, int pid) {
 void printMMU() {
     printf("|%4s  | %13s | %12s | %4s \n", "PID", "Variable Name", "Virtual Addr", "Size");
     printf("+------+---------------+--------------+------------\n");
-    for (auto const& loc : mmuTable.table)
-    {
-        //loc.first string (key)
-        //loc.second string's value
-        if(loc.second.name!="freeSpace") {
-            printf("| %4d | %13s | %12s | %10d \n", loc.second.pid, loc.second.name.c_str(), to_string(loc.second.address).c_str(), loc.second.size);
+    //Looked up how to change map to vector, for sorting purposes
+    //https://stackoverflow.com/questions/5056645/sorting-stdmap-using-value
+    vector<std::pair<string, MMUObject>> pairs;
+    for (auto itr = mmuTable.table.begin(); itr != mmuTable.table.end(); ++itr) {
+        pairs.push_back(*itr);
+    }
+    //found sorting method to compare two attributes here
+    //https://stackoverflow.com/questions/6771374/sorting-an-stl-vector-on-two-values
+    sort( pairs.begin(), pairs.end(), compareEntry );
+    for(int i=0; i<pairs.size(); i++) {
+        if(pairs[i].second.name!="freeSpace") {
+            printf("| %4d | %13s | %12s | %10d \n", pairs[i].second.pid, pairs[i].second.name.c_str(), to_string(pairs[i].second.address).c_str(), pairs[i].second.size);
         }
     }
+
+}
+
+bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>& b) {
+    if( a.second.pid != b.second.pid)
+        return (a.second.pid < b.second.pid);
+    return (a.second.address < b.second.address);
 }
 
 bool findExistingPID(int pid){
