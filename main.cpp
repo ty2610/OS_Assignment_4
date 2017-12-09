@@ -2,6 +2,7 @@
 #include <map>
 #include <ctime>
 #include <algorithm>
+#include <vector>
 
 //This is a CPP that will be compiled under c++ standard 11
 //compilable with g++ -o main main.cpp -std=c++11
