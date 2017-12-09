@@ -77,36 +77,52 @@ int main(int argc, char *argv[]) {
     while(true){
         cout << ">  ";
 
+        string input;
         getline(cin,input);
+        vector<string> inpv;
+        int start = 0;
+        int end = input.find(" ");
+        if(end != string::npos) {
+            while (end != std::string::npos) {
+                inpv.push_back(input.substr(start, end - start));
+                start = end + 1;
+                end = input.find(" ", start);
+            }
+            inpv.push_back(input.substr(start, input.length()));
+        } else {
+            inpv.push_back(input);
+        }//CREATES AN INDEXIBLE INPUT VECTOR
 
-        if(input == COMMAND_NAME_EXIT){
+
+    
+
+        if(inpv[0] == COMMAND_NAME_EXIT){
             cout << "Goodbye" << endl;
             break;
-        }else if (input == COMMAND_NAME_CREATE){
+        }else if (inpv[0] == COMMAND_NAME_CREATE){
             createProcess();
-        }else if (input == COMMAND_LINE_BREAK){
+        }else if (inpv[0] == COMMAND_LINE_BREAK){
           //do nothing
-        } else if(input == "print mmu"){
-            //THIS IS PURELY FOR TESTING MMU PRINT
-            //THERE NEEDS TO BE BETTER INPUT MANAGEMENT FOR ALL THE PRINTS
+        } else if(inpv[0] == "print mmu"){
+            //conditional statements for print
             printMMU();
 
-        } else if(input.substr(0,8) == "allocate") {
+        } else if(inpv[0] == "allocate") {
             //allocateVariable(int pid, string name, string type, int amount)
             //allocate 1024 point int 1
-            if(!isNumber(input.substr(9,4)) && !isNumber(to_string(input.at(24)))){
+            if(!isNumber(inpv[1]) && !isNumber(inpv[4])){
                 cout << "The inputted PID and amount must be an integer" << endl;
             } else {
-                if(findExistingPID(stoi(input.substr(9,4)))){
-                    allocateVariable(stoi(input.substr(9,4)),input.substr(14,5),input.substr(20,3),stoi(to_string(input.at(24))));
+                if(findExistingPID(stoi(inpv[1]))){
+                    allocateVariable(stoi(inpv[1]),inpv[2],inpv[3],stoi(inpv[4]));
                 } else {
                     cout << "The provided PID has not been created yet." << endl;
                 }
 
             }
         //terminate <PID>
-        } else if (input.substr(0,9) == "terminate") {
-            if(isNumber(input.substr(10,4))){
+        } else if (inpv[0] == "terminate") {
+            if(isNumber(inpv[1])){
                 if(findExistingPID(stoi(input.substr(10,4)))){
                     terminatePID(stoi(input.substr(10,4)));
                 } else {
