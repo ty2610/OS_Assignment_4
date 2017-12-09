@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
             createProcess();
         }else if (inpv[0] == COMMAND_LINE_BREAK){
             //do nothing
-        } else if(inpv[0] == "print mmu"){
+        } else if(inpv[0] == "print" && inpv[1] == "mmu"){
             //conditional statements for print
             printMMU();
 
@@ -141,8 +141,8 @@ int main(int argc, char *argv[]) {
             //terminate <PID>
         } else if (inpv[0] == "terminate") {
             if(isNumber(inpv[1])){
-                if(findExistingPID(stoi(input.substr(10,4)))){
-                    terminatePID(stoi(input.substr(10,4)));
+                if(findExistingPID(stoi(inpv[1]))){
+                    terminatePID(stoi(inpv[1]));
                 } else {
                     cout << "The provided PID has not been created yet." << endl;
                 }
