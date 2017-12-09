@@ -12,6 +12,7 @@ using namespace std;
 struct MainInfo {
     uint8_t *mem = new uint8_t[67108864];
     int currentPID = 1024;
+    int frame = 0;
 } mainInfo;
 
 struct CommandInput {
@@ -29,9 +30,18 @@ struct MMUObject {
     string key;
 };
 
-struct FrameTable {
-
+struct PageUnit {
+    int pid;
+    int pageSize;
+    int freeSpace;
+    int pageNumber;
+    int frameNumber;
 };
+
+struct FrameTable {
+    map<int, PageUnit> table;
+}frameTable;
+
 
 struct MMUTable {
     map<string, MMUObject> table;
@@ -43,6 +53,8 @@ struct Process {
     int globals; //some number 0-1024 bytes
     const int stack{65536}; //stack constant in bytes
     //VarMap nums;
+    int amountPage = 0;
+    PageUnit currentPage;
 };//Process struct
 
 const string COMMAND_NAME_EXIT = "exit";
@@ -57,6 +69,9 @@ void printMMU();
 void allocateVariable(int pid, string name, string type, int amount);
 bool findExistingPID(int pid);
 void terminatePID(int pid);
+void createPage(Process *process);
+void pageHandler(Process *process, int data);
+void printPage();
 
 int main(int argc, char *argv[]) {
     string input;
@@ -95,7 +110,7 @@ int main(int argc, char *argv[]) {
         }//CREATES AN INDEXIBLE INPUT VECTOR
 
 
-    
+
 
         if(inpv[0] == COMMAND_NAME_EXIT){
             cout << "Goodbye" << endl;
@@ -103,11 +118,13 @@ int main(int argc, char *argv[]) {
         }else if (inpv[0] == COMMAND_NAME_CREATE){
             createProcess();
         }else if (inpv[0] == COMMAND_LINE_BREAK){
-          //do nothing
+            //do nothing
         } else if(inpv[0] == "print mmu"){
             //conditional statements for print
             printMMU();
 
+        } else if(input == "print page"){
+            printPage();
         } else if(inpv[0] == "allocate") {
             //allocateVariable(int pid, string name, string type, int amount)
             //allocate 1024 point int 1
@@ -121,7 +138,7 @@ int main(int argc, char *argv[]) {
                 }
 
             }
-        //terminate <PID>
+            //terminate <PID>
         } else if (inpv[0] == "terminate") {
             if(isNumber(inpv[1])){
                 if(findExistingPID(stoi(input.substr(10,4)))){
@@ -201,6 +218,9 @@ void createProcess(){
     freeSpace.key = to_string(freeSpace.pid) + freeSpace.name;
     mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
 
+    //the first page
+    createPage(process);
+
     MMUObject codeMMU;
     codeMMU.pid = process->pid;
     codeMMU.name = "<TEXT>";
@@ -213,6 +233,10 @@ void createProcess(){
     mmuTable.table.at(freeSpaceMMUKey).size = mmuTable.table.at(freeSpaceMMUKey).size - codeMMU.size;
 
     mmuTable.table.insert(std::pair<string, MMUObject>(codeMMU.key,codeMMU));
+
+    codeMMU.pageNumber = process->currentPage.pageNumber;
+    codeMMU.frameNumber = process->currentPage.frameNumber;
+    pageHandler(process,process->code);
 
     MMUObject globalMMU;
     globalMMU.pid = process->pid;
@@ -227,6 +251,10 @@ void createProcess(){
 
     mmuTable.table.insert(std::pair<string, MMUObject>(globalMMU.key,globalMMU));
 
+    globalMMU.pageNumber = process->currentPage.pageNumber;
+    globalMMU.frameNumber = process->currentPage.frameNumber;
+    pageHandler(process,process->globals);
+
     MMUObject stackMMU;
     stackMMU.pid = process->pid;
     stackMMU.name = "<STACK>";
@@ -239,6 +267,11 @@ void createProcess(){
     mmuTable.table.at(freeSpaceMMUKey).size = mmuTable.table.at(freeSpaceMMUKey).size - stackMMU.size;
 
     mmuTable.table.insert(std::pair<string, MMUObject>(stackMMU.key,stackMMU));
+
+    stackMMU.pageNumber = process->currentPage.pageNumber;
+    stackMMU.frameNumber = process->currentPage.frameNumber;
+    pageHandler(process,process->stack);
+
 
     cout << process->pid << endl;
 }
@@ -322,5 +355,47 @@ void terminatePID(int pid){
         } else {
             ++it;
         }
+    }
+}
+
+void createPage(Process *process){
+    //new process with no page
+    PageUnit page;
+    page.pid = process->pid;
+    page.pageSize = commandInput.pageSize;
+    page.freeSpace = page.pageSize;
+    page.pageNumber = process->amountPage;
+    process->amountPage++;
+    page.frameNumber = mainInfo.frame;
+    mainInfo.frame++;
+    process->currentPage = page;
+    frameTable.table[process->currentPage.frameNumber] = process->currentPage ;
+}
+
+void pageHandler(Process *process, int data){
+    int remainData = data;
+
+    while(remainData > 0){
+        remainData -= process->currentPage.freeSpace;
+        if(remainData < 0){
+            process->currentPage.freeSpace = remainData * (-1);
+            frameTable.table[process->currentPage.frameNumber] = process->currentPage ;
+        }else{
+            process->currentPage.freeSpace = 0;
+            frameTable.table[process->currentPage.frameNumber] = process->currentPage ;
+            createPage(process);
+        }
+    }
+}
+
+void printPage(){
+    printf("|%4s  | %11s | %12s \n", "PID", "Page Number", "Frame Number");
+    printf("+------+-------------+--------------\n");
+    for (auto const& loc : frameTable.table)
+    {
+        //loc.first int (frameNumber)
+        //loc.second PageUnit, we need loc.second.pageNumber
+        printf("| %4d | %11d | %12d  \n", loc.second.pid, loc.second.pageNumber, loc.first);
+
     }
 }
