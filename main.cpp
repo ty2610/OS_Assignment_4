@@ -53,6 +53,9 @@ bool isNumber(const string& s);
 void createProcess();
 string findFreeSpaceMMU(int size, int pid);
 void printMMU();
+void allocateVariable(int pid, string name, string type, int amount);
+bool findExistingPID(int pid);
+void terminatePID(int pid);
 
 int main(int argc, char *argv[]) {
     string input;
@@ -88,7 +91,32 @@ int main(int argc, char *argv[]) {
             //THERE NEEDS TO BE BETTER INPUT MANAGEMENT FOR ALL THE PRINTS
             printMMU();
 
-        } else{
+        } else if(input.substr(0,8) == "allocate") {
+            //allocateVariable(int pid, string name, string type, int amount)
+            //allocate 1024 point int 1
+            if(!isNumber(input.substr(9,4)) && !isNumber(to_string(input.at(24)))){
+                cout << "The inputted PID and amount must be an integer" << endl;
+            } else {
+                if(findExistingPID(stoi(input.substr(9,4)))){
+                    allocateVariable(stoi(input.substr(9,4)),input.substr(14,5),input.substr(20,3),stoi(to_string(input.at(24))));
+                } else {
+                    cout << "The provided PID has not been created yet." << endl;
+                }
+
+            }
+        //terminate <PID>
+        } else if (input.substr(0,9) == "terminate") {
+            if(isNumber(input.substr(10,4))){
+                if(findExistingPID(stoi(input.substr(10,4)))){
+                    terminatePID(stoi(input.substr(10,4)));
+                } else {
+                    cout << "The provided PID has not been created yet." << endl;
+                }
+            } else {
+                cout << "The provided PID must be an integer" << endl;
+            }
+
+        } else {
             cout << input << " :: invalid input" << endl;
         }
 
@@ -198,6 +226,37 @@ void createProcess(){
     cout << process->pid << endl;
 }
 
+void allocateVariable(int pid, string name, string type, int amount) {
+    MMUObject stackMMU;
+    stackMMU.pid = pid;
+    stackMMU.name = name;
+    if(type == "char"){
+        stackMMU.size = amount;
+        stackMMU.typeCode = 1;
+    } else if(type == "short") {
+        stackMMU.size = amount*2;
+        stackMMU.typeCode = 2;
+    } else if(type == "int" || type == "floats") {
+        stackMMU.size = amount*4;
+        stackMMU.typeCode = 3;
+    } else {
+        stackMMU.size = amount*8;
+        stackMMU.typeCode = 4;
+    }
+
+
+    stackMMU.key = to_string(stackMMU.pid) + stackMMU.name;
+    string freeSpaceMMUKey = findFreeSpaceMMU(stackMMU.size, stackMMU.pid);
+    stackMMU.address = mmuTable.table.at(freeSpaceMMUKey).address;
+    mmuTable.table.at(freeSpaceMMUKey).address = stackMMU.address+stackMMU.size;
+    mmuTable.table.at(freeSpaceMMUKey).size = mmuTable.table.at(freeSpaceMMUKey).size - stackMMU.size;
+    if( mmuTable.table.at(freeSpaceMMUKey).size == 0 ) {
+        mmuTable.table.erase(freeSpaceMMUKey);
+    }
+
+    mmuTable.table.insert(std::pair<string, MMUObject>(stackMMU.key,stackMMU));
+}
+
 string findFreeSpaceMMU(int size, int pid) {
     //found a map iterator
     //https://stackoverflow.com/questions/26281979/c-loop-through-map
@@ -220,6 +279,31 @@ void printMMU() {
         //loc.second string's value
         if(loc.second.name!="freeSpace") {
             printf("| %4d | %13s | %12s | %10d \n", loc.second.pid, loc.second.name.c_str(), to_string(loc.second.address).c_str(), loc.second.size);
+        }
+    }
+}
+
+bool findExistingPID(int pid){
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.second.name!="freeSpace" && loc.second.pid==pid) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void terminatePID(int pid){
+    //different type of loop to go trough all entries of map, this is necessary
+    //because the old loop
+    //https://stackoverflow.com/questions/8234779/how-to-remove-from-a-map-while-iterating-it
+    for (auto it = mmuTable.table.begin(); it != mmuTable.table.end(); ) {
+        if (it->second.pid == pid) {
+            it = mmuTable.table.erase(it);
+        } else {
+            ++it;
         }
     }
 }
