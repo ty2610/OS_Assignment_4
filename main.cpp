@@ -127,16 +127,19 @@ int main(int argc, char *argv[]) {
             createProcess();
         }else if (inpv[0] == COMMAND_LINE_BREAK){
             //do nothing
-        } else if(inpv[0] == "print" && inpv[1] == "mmu"){
-            //conditional statements for print
-            printMMU();
+        } else if(inpv[0] == "print"){
+            if(inpv.size() != 2) {
+                cout<< "print command must have mmu or page arguments"<<endl;
+            }else if (inpv[1] == "mmu") {
+                printMMU();
+            }else if (inpv[1] == "page") {
+                printPage();
+            }//interior print conditionals
 
-        } else if(input == "print page"){
-            printPage();
         } else if(inpv[0] == "allocate") {
-            //allocateVariable(int pid, string name, string type, int amount)
-            //allocate 1024 point int 1
-            if(!isNumber(inpv[1]) && !isNumber(inpv[4])){
+            if(inpv.size() != 5) {
+                cout<< "allocate requires 5 arguments"<<endl;
+            } else if(!isNumber(inpv[1]) && !isNumber(inpv[4])){
                 cout << "The inputted PID and amount must be an integer" << endl;
             } else {
                 if(findExistingPID(stoi(inpv[1]))){
@@ -148,18 +151,20 @@ int main(int argc, char *argv[]) {
             }
             //terminate <PID>
         } else if (inpv[0] == "terminate") {
-            if(isNumber(inpv[1])){
-                if(findExistingPID(stoi(inpv[1]))){
-                    terminatePID(stoi(inpv[1]));
-                } else {
-                    cout << "The provided PID has not been created yet." << endl;
-                }
+            if(inpv.size() != 2) {
+                cout<<"terminate requires one argument "<<endl;
+            } else if(isNumber(inpv[1])){
+                 if(findExistingPID(stoi(inpv[1]))){
+                     terminatePID(stoi(inpv[1]));
+                 } else {
+                     cout << "The provided PID has not been created yet." << endl;
+                 }
             } else {
-                cout << "The provided PID must be an integer" << endl;
+                    cout << "The provided PID must be an integer" << endl;
             }
 
         } else {
-            cout << input << " :: invalid input" << endl;
+                cout << input << " :: invalid input" << endl;
         }
 
     }
