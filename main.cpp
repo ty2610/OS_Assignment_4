@@ -3,6 +3,7 @@
 #include <ctime>
 #include <algorithm>
 #include <vector>
+#include <fstream>
 
 //This is a CPP that will be compiled under c++ standard 11
 //compilable with g++ -o main main.cpp -std=c++11
@@ -97,6 +98,22 @@ int main(int argc, char *argv[]) {
             "    * if <object> is \"page\", print the page table\n"
             "    * if <object> is \"processes\", print a list of PIDs for processes that are still running\n"
             "    * if <object> is a \"<PID>:<var_name>\", print the value of the variable for that process" << endl;
+
+    //on startup create memory backing file
+    if(ifstream("memfile.txt")) {
+        //check size
+    } else {
+        ofstream outputFile("memfile.txt");
+        for(int i = 0; i<1024*488*1024; i++) {
+            outputFile<<"0";
+        }
+    outputFile.close();
+    }//if doesn't already exist, create 488MB file : memfile.txt
+
+
+
+
+
 
     while(true){
         cout << ">  ";
