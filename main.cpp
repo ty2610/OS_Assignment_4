@@ -398,6 +398,10 @@ void createPage(Process *process){
 void pageHandler(Process *process, MMUObject mmu){
     int remainData = mmu.size;
 
+    while(process->currentPage.freeSpace == 0){
+        process->currentPage = process->pageTable[process->currentPage.pageNumber+1];
+    }
+
     mmu.pageNumber = process->currentPage.pageNumber;
     mmu.frameNumber = process->currentPage.frameNumber;
 
