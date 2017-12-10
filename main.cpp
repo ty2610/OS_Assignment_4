@@ -57,6 +57,7 @@ struct Process {
     int amountPageUsed = 0;
     PageUnit currentPage;
     map<int, PageUnit> pageTable;
+    int totalPageRemainSpace;
 };//Process struct
 
 struct ProcessTable{
@@ -226,6 +227,7 @@ void createProcess(){
     mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
 
     createPage(process);
+    process->totalPageRemainSpace = 2097152;
     process->currentPage = process->pageTable[0];
     process->currentPage.frameNumber = mainInfo.frame;
     mainInfo.frame++;
@@ -397,6 +399,11 @@ void createPage(Process *process){
 
 void pageHandler(Process *process, MMUObject mmu){
     int remainData = mmu.size;
+    //check if there is enough space in all pages
+    if(remainData > process->totalPageRemainSpace){
+        cout << "no more space in page" << endl;
+        return ;
+    }
 
     while(process->currentPage.freeSpace == 0){
         process->currentPage = process->pageTable[process->currentPage.pageNumber+1];
@@ -408,15 +415,18 @@ void pageHandler(Process *process, MMUObject mmu){
     while(remainData > 0){
         remainData -= process->currentPage.freeSpace;
         if(remainData < 0){
+            process->totalPageRemainSpace -= remainData *(-1);
             process->currentPage.freeSpace = remainData *(-1);
             frameTable.table[process->currentPage.frameNumber] = process->currentPage;
             process->pageTable[process->currentPage.pageNumber] = process->currentPage;
         }else{
+            process->totalPageRemainSpace -= process->currentPage.freeSpace;
             process->currentPage.freeSpace = 0;
             frameTable.table[process->currentPage.frameNumber] = process->currentPage;
             process->pageTable[process->currentPage.pageNumber] = process->currentPage;
             //move to next page
-            process->currentPage = process->pageTable[process->currentPage.pageNumber+1];
+            //check if there is enough space in all pages
+            process->currentPage = process->pageTable[(process->currentPage.pageNumber+1)%process->pages];
             process->currentPage.frameNumber = mainInfo.frame;
             mainInfo.frame++;
         }
