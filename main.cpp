@@ -83,6 +83,7 @@ void printPage();
 bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>& b);
 bool findExistingVariable(int pid, string name);
 void freeVariable(int pid, string name);
+void printProcesses();
 
 int main(int argc, char *argv[]) {
     string input;
@@ -109,13 +110,8 @@ int main(int argc, char *argv[]) {
         for(int i = 0; i<1024*488*1024; i++) {
             outputFile<<"0";
         }
-    outputFile.close();
+        outputFile.close();
     }//if doesn't already exist, create 488MB file : memfile.txt
-
-
-
-
-
 
     while(true){
         cout << ">  ";
@@ -149,10 +145,18 @@ int main(int argc, char *argv[]) {
         } else if(inpv[0] == "print"){
             if(inpv.size() != 2) {
                 cout<< "print command must have mmu or page arguments"<<endl;
-            }else if (inpv[1] == "mmu") {
+            } else if (inpv[1] == "mmu") {
                 printMMU();
-            }else if (inpv[1] == "page") {
+            } else if (inpv[1] == "page") {
                 printPage();
+            } else if(inpv[1] == "processes"){
+                if(processTable.table.size()==0) {
+                    cout << "There are no processes currently running" << endl;
+                } else {
+                    printProcesses();
+                }
+            } else {
+                cout << "The inputted object to be printed doesn't exist" << endl;
             }//interior print conditionals
 
         } else if(inpv[0] == "allocate") {
@@ -284,7 +288,6 @@ void createProcess(){
     mmuTable.table.insert(std::pair<string, MMUObject>(codeMMU.key,codeMMU));
 
     pageHandler(process,codeMMU);
-    processTable.table[process->pid] = process;
 
     MMUObject globalMMU;
     globalMMU.pid = process->pid;
@@ -300,7 +303,6 @@ void createProcess(){
     mmuTable.table.insert(std::pair<string, MMUObject>(globalMMU.key,globalMMU));
 
     pageHandler(process,globalMMU);
-    processTable.table[process->pid] = process;
 
     MMUObject stackMMU;
     stackMMU.pid = process->pid;
@@ -316,7 +318,6 @@ void createProcess(){
     mmuTable.table.insert(std::pair<string, MMUObject>(stackMMU.key,stackMMU));
 
     pageHandler(process,stackMMU);
-    processTable.table[process->pid] = process;
 
     processTable.table[process->pid] = process;
     cout << process->pid << endl;
@@ -530,5 +531,11 @@ void printPage(){
                        pageLoc.second.frameNumber);
             }
         }
+    }
+}
+
+void printProcesses() {
+    for (auto const& processLoc : processTable.table) {
+        cout << processLoc.second->pid << endl;
     }
 }
