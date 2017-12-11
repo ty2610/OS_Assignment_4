@@ -70,6 +70,7 @@ const string COMMAND_NAME_EXIT = "exit";
 const string COMMAND_NAME_CREATE = "create";
 const string COMMAND_LINE_BREAK = "";
 
+void switchMem(PageUnit page);
 void takeCommand(int argc, char *argv[]);
 bool isNumber(const string& s);
 void createProcess();
@@ -272,7 +273,7 @@ void createProcess(){
     freeSpace.name = "freeSpace";
     freeSpace.pid = process->pid;
     freeSpace.address = 0;
-    //arbitraury size, need 32 created threads to go over size
+    //arbitrary size, need 32 created threads to go over size
     //this is temporary until file is implemented
     //this number will need to increase until the collective free space
     //is filled, in the physical memory and file
@@ -284,7 +285,22 @@ void createProcess(){
     createPage(process);
     process->totalPageRemainSpace = 2097152;
     process->currentPage = process->pageTable[0];
-    process->currentPage.frameNumber = mainInfo.frame;
+    //assigning frame number
+    if(commandInput.pageSize * mainInfo.frame >= 67108864) {
+        //if the amount of frames in use is more than there are in RAM
+        if(commandInput.pageSize * mainInfo.frame <= 536870912) {
+            //greater than RAM but less than memory
+            //switch a page to memory, and put this one on the RAM i.e. switch one on RAM to on mem, write its values
+            
+            process->currentPage.frameNumber = mainInfo.frame;
+        } else {
+            //TRYING TO USE MORE MEM THAN AVAILABLE
+            //return 0;
+        }
+    } else {
+        process->currentPage.frameNumber = mainInfo.frame;
+    }
+    
     mainInfo.frame++;
 
     MMUObject codeMMU;
@@ -531,6 +547,24 @@ void pageHandler(Process *process, MMUObject mmu){
         }
     }
 }
+
+void switchMem(PageUnit* page) {
+    //method to switch input process out of memory, and another process into memory
+    int swp = 0; //switched page accomplished
+    page->inMem = 0;
+    for (auto& processLoc : processTable.table) {
+        if (swp == 0) {
+            for (auto& pageLoc : processLoc.second->pageTable) {
+                if (pageLoc.second.inMem == 0) {
+                    //write into "mem" starting at the index that the current page was taken out of (e.g. frame * size)
+                    pageLoc.second.inMem = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+} // switches input page onto RAM, writes first page already on RAM onto file, switches tag back
 
 void printPage(){
     printf("|%4s  | %11s | %12s \n", "PID", "Page Number", "Frame Number");
