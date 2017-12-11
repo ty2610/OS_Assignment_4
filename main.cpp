@@ -81,6 +81,8 @@ void createPage(Process *process);
 void pageHandler(Process *process, MMUObject mmu);
 void printPage();
 bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>& b);
+bool findExistingVariable(int pid, string name);
+void freeVariable(int pid, string name);
 
 int main(int argc, char *argv[]) {
     string input;
@@ -160,7 +162,12 @@ int main(int argc, char *argv[]) {
                 cout << "The inputted PID and amount must be an integer" << endl;
             } else {
                 if(findExistingPID(stoi(inpv[1]))){
-                    allocateVariable(stoi(inpv[1]),inpv[2],inpv[3],stoi(inpv[4]));
+                    if(!findExistingVariable(stoi(inpv[1]),inpv[2])){
+                        allocateVariable(stoi(inpv[1]),inpv[2],inpv[3],stoi(inpv[4]));
+                    } else {
+                        cout << "There is already a variable with that name that exists with the given PID" << endl;
+                    }
+
                 } else {
                     cout << "The provided PID has not been created yet." << endl;
                 }
@@ -179,7 +186,16 @@ int main(int argc, char *argv[]) {
             } else {
                     cout << "The provided PID must be an integer" << endl;
             }
-
+        } else if(inpv[0] == "free") {
+            if(isNumber(inpv[1])){
+                if(findExistingVariable(stoi(inpv[1]), inpv[2])){
+                    freeVariable(stoi(inpv[1]), inpv[2]);
+                } else {
+                    cout << "The provided PID and Variable has not been created yet." << endl;
+                }
+            } else {
+                cout << "The provided PID must be an integer" << endl;
+            }
         } else {
                 cout << input << " :: invalid input" << endl;
         }
@@ -245,7 +261,7 @@ void createProcess(){
     //is filled, in the physical memory and file
     freeSpace.size = 2097152;
     freeSpace.typeCode = 0;
-    freeSpace.key = to_string(freeSpace.pid) + freeSpace.name;
+    freeSpace.key = to_string(freeSpace.pid) + freeSpace.name + to_string(freeSpace.address);
     mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
 
     createPage(process);
@@ -344,14 +360,31 @@ void allocateVariable(int pid, string name, string type, int amount) {
 string findFreeSpaceMMU(int size, int pid) {
     //found a map iterator
     //https://stackoverflow.com/questions/26281979/c-loop-through-map
+    int lowest = -1;
+    string ret;
     for (auto const& loc : mmuTable.table)
     {
         //loc.first string (key)
         //loc.second string's value
         if(loc.second.name=="freeSpace" && loc.second.size>=size && pid == loc.second.pid) {
-            return loc.first;
+            lowest = loc.second.address;
+            ret = loc.second.key;
         }
     }
+    if(lowest == -1){
+        return "N/A";
+    }
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.second.name=="freeSpace" && loc.second.size>=size && pid == loc.second.pid && loc.second.address < lowest) {
+            lowest = loc.second.address;
+            ret = loc.second.key;
+        }
+    }
+    return ret;
+
 }
 
 void printMMU() {
@@ -392,6 +425,18 @@ bool findExistingPID(int pid){
     return false;
 }
 
+bool findExistingVariable(int pid, string name) {
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.second.name!="freeSpace" && loc.second.pid==pid && loc.second.name == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void terminatePID(int pid){
     //different type of loop to go trough all entries of map, this is necessary
     //because the old loop
@@ -403,6 +448,24 @@ void terminatePID(int pid){
             ++it;
         }
     }
+}
+
+void freeVariable(int pid, string name) {
+    MMUObject freeSpace;
+    freeSpace.name = "freeSpace";
+    freeSpace.pid = pid;
+    freeSpace.address = mmuTable.table.at(to_string(pid)+name).address;
+    //arbitraury size, need 32 created threads to go over size
+    //this is temporary until file is implemented
+    //this number will need to increase until the collective free space
+    //is filled, in the physical memory and file
+    freeSpace.size = mmuTable.table.at(to_string(pid)+name).size;
+    freeSpace.typeCode = 0;
+    //NEED TO LOOK HERE, THE KEY IS 1024freespace, BUT THAT ALREADY EXISTS, MAYBE SOMETHING ELSE MUST BE INCLUDED WITH
+    //THE KEY. PROBABLY THE ADDRESS
+    freeSpace.key = to_string(pid) + freeSpace.name + to_string(freeSpace.address);
+    mmuTable.table.erase(to_string(pid)+name);
+    mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
 }
 
 void createPage(Process *process){
