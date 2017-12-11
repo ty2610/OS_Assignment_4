@@ -37,7 +37,7 @@ struct PageUnit {
     int freeSpace;
     int pageNumber;
     int frameNumber;
-    int inMem; //0 if the corresponding frame is in memory rather than RAM
+    int inMem; //1 if the corresponding frame is in memory rather than RAM
 };
 
 struct FrameTable {
@@ -295,7 +295,7 @@ void createProcess(){
             process->currentPage.frameNumber = mainInfo.frame;
         } else {
             //TRYING TO USE MORE MEM THAN AVAILABLE
-            //return 0;
+            exit(0);
         }
     } else {
         process->currentPage.frameNumber = mainInfo.frame;
