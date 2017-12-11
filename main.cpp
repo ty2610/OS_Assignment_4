@@ -37,6 +37,7 @@ struct PageUnit {
     int freeSpace;
     int pageNumber;
     int frameNumber;
+    int inMem; //0 if the corresponding frame is in memory rather than RAM
 };
 
 struct FrameTable {
@@ -104,7 +105,19 @@ int main(int argc, char *argv[]) {
 
     //on startup create memory backing file
     if(ifstream("memfile.txt")) {
-        //check size
+        FILE *file = fopen("memfile.txt", "rb");
+        fseek(file, 0, SEEK_END);
+        int leng = ftell(file);
+        fclose(file);//find length of file in bytes
+        if (leng == (1024*1024*488)) {
+            //the file is correct
+        } else {
+            ofstream outputFile("memfile.txt");
+            for(int i = 0; i<1024*488*1024; i++) {
+                outputFile<<"0";
+            }
+            outputFile.close();
+        }
     } else {
         ofstream outputFile("memfile.txt");
         for(int i = 0; i<1024*488*1024; i++) {
