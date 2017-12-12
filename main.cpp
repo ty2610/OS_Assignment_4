@@ -570,7 +570,7 @@ string findFreeSpaceMMU(int size, int pid) {
 }
 
 void printMMU() {
-    printf("|%4s  | %13s | %12s | %4s \n", "PID", "Variable Name", "Virtual Addr", "Size");
+    printf("|%4s  | %13s | %11s | %4s \n", "PID", "Variable Name", "Virtual Addr", "Size");
     printf("+------+---------------+--------------+------------\n");
     //Looked up how to change map to vector, for sorting purposes
     //https://stackoverflow.com/questions/5056645/sorting-stdmap-using-value
@@ -583,7 +583,7 @@ void printMMU() {
     sort( pairs.begin(), pairs.end(), compareEntry );
     for(int i=0; i<pairs.size(); i++) {
         if(pairs[i].second.name!="freeSpace") {
-            printf("| %4d | %13s | %12s | %10d \n", pairs[i].second.pid, pairs[i].second.name.c_str(), to_string(pairs[i].second.address).c_str(), pairs[i].second.size);
+            printf("| %4d | %13s | 0x%08x | %10d \n", pairs[i].second.pid, pairs[i].second.name.c_str(), pairs[i].second.address, pairs[i].second.size);
         }
     }
 
