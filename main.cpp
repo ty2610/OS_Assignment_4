@@ -820,8 +820,13 @@ void printPage(){
         for (auto const& pageLoc : processLoc.second->pageTable) {
             //go through pageTable in every process
             if (pageLoc.second.frameNumber != -1) {
-                printf("| %4d | %11d | %12d  \n", processLoc.second->pid, pageLoc.second.pageNumber,
+                if(pageLoc.second.inMem != 1) {
+                    printf("\x1b[31m" "| %4d | %11d | %12d  \n" "\x1b[0m", processLoc.second->pid, pageLoc.second.pageNumber,
                        pageLoc.second.frameNumber);
+                }else {
+                    printf("| %4d | %11d | %12d  \n", processLoc.second->pid, pageLoc.second.pageNumber,
+                       pageLoc.second.frameNumber);
+                }
             }
         }
     }
