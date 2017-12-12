@@ -5,6 +5,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <string.h>
 
 //This is a CPP that will be compiled under c++ standard 11
 //compilable with g++ -o main main.cpp -std=c++11
@@ -86,7 +87,7 @@ const string COMMAND_NAME_EXIT = "exit";
 const string COMMAND_NAME_CREATE = "create";
 const string COMMAND_LINE_BREAK = "";
 
-void switchMem(PageUnit page);
+void switchMem(PageUnit* page, int fnumber);
 void takeCommand(int argc, char *argv[]);
 bool isNumber(const string& s);
 void createProcess();
@@ -140,6 +141,7 @@ int main(int argc, char *argv[]) {
         }
     } else {
         ofstream outputFile("memfile.txt");
+        cout<< "CREATING NEW 488MB FILE, INITIALIZED TO 0s"<<endl;
         for(int i = 0; i<1024*488*1024; i++) {
             outputFile<<"0";
         }
@@ -372,9 +374,9 @@ void createProcess(){
     if(commandInput.pageSize * mainInfo.frame >= 67108864) {
         //if the amount of frames in use is more than there are in RAM
         if(commandInput.pageSize * mainInfo.frame <= 536870912) {
-            //greater than RAM but less than memory
-            //switch a page to memory, and put this one on the RAM i.e. switch one on RAM to on mem, write its values
-            process->currentPage.frameNumber = mainInfo.frame;
+            
+            switchMem(&(process->currentPage), mainInfo.frame);
+            
         } else {
             //TRYING TO USE MORE MEM THAN AVAILABLE
             exit(0);
@@ -666,16 +668,27 @@ void pageHandler(Process *process, MMUObject mmu){
             process->currentPage.freeSpace = 0;
             frameTable.table[process->currentPage.frameNumber] = process->currentPage;
             process->pageTable[process->currentPage.pageNumber] = process->currentPage;
-            //move to next page
-            //check if there is enough space in all pages
+
             while(process->currentPage.freeSpace == 0) {
                 process->currentPage = process->pageTable[(process->currentPage.pageNumber + 1) % process->pages];
             }
-            //frameNumber need to be fixed
-            process->currentPage.frameNumber = mainInfo.frame;
-            mainInfo.frame++;
+            
+            if(commandInput.pageSize * mainInfo.frame >= 67108864) {
+                if(commandInput.pageSize * mainInfo.frame <= 536870912) {
+            
+                    switchMem(&(process->currentPage), mainInfo.frame);
+            
+                } else {
+            //TRYING TO USE MORE MEM THAN AVAILABLE
+                    exit(0);
+               }
+            } else {
+                process->currentPage.frameNumber = mainInfo.frame;
+            }
+                process->currentPage.frameNumber = mainInfo.frame;
+                mainInfo.frame++;
+            }
         }
-    }
 
     //update the mmu in the mmuTable
     mmuTable.table[mmu.key] = mmu;
@@ -685,15 +698,35 @@ void freeFromPage(Process process, MMUObject mmu){
 
 }
 
-void switchMem(PageUnit* page) {
+void switchMem(PageUnit* page, int fnumber) {
     //method to switch input process out of memory, and another process into memory
     int swp = 0; //switched page accomplished
+    fstream fmem;
+    fmem.open("memfile.txt");
+    long pos = fmem.tellp() + long(fnumber*commandInput.pageSize);
     page->inMem = 0;
     for (auto& processLoc : processTable.table) {
         if (swp == 0) {
             for (auto& pageLoc : processLoc.second->pageTable) {
                 if (pageLoc.second.inMem == 0) {
+                    vector<std::pair<string, MMUObject>> pairs;
+                    for (auto itr = mmuTable.table.begin(); itr != mmuTable.table.end(); ++itr) {
+                        pairs.push_back(*itr);
+                    }
+                    //Hijacked excerpted code from MMUprint
+                    sort( pairs.begin(), pairs.end(), compareEntry );
+                    for(int i=0; i<pairs.size(); i++) {
+                         fmem.seekp(pos);
+                         if(pairs[i].second.pid ==pageLoc.second.pid) {
+                            //THIS GETS YOU ALL THE MMU OBJECTS THAT BELONG TO THE PID
+                            //pos = pos + pairs[i].second.size;
+                         }
+                    }
+
+
                     //write into "mem" starting at the index that the current page was taken out of (e.g. frame * size)
+                    page->frameNumber = pageLoc.second.frameNumber;
+                    pageLoc.second.frameNumber = fnumber;
                     pageLoc.second.inMem = 1;
                     break;
                 }
