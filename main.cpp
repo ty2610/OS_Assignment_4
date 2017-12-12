@@ -15,7 +15,7 @@ using namespace std;
 struct MainInfo {
     uint8_t *mem = new uint8_t[67108864];
     int currentPID = 1024;
-    int frame = 0;
+    vector<int> frame;
 } mainInfo;
 
 struct CommandInput {
@@ -101,7 +101,7 @@ bool findExistingPID(int pid);
 void terminatePID(int pid);
 void createPage(Process *process);
 void pageHandler(Process *process, MMUObject mmu);
-void freeFromPage(Process process, MMUObject mmu);
+void freeFromPage(Process *process, MMUObject mmu);
 void printPage();
 bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>& b);
 bool findExistingVariable(int pid, string name);
@@ -111,6 +111,7 @@ int findExistingVariableType(int pid, string name);
 void setValues(int pid, string name, int offset, vector<VariableObject> values);
 string findExistingVariableKey(int pid, string name);
 bool isFloat( string myString );
+int lowestFrameNum();
 
 int main(int argc, char *argv[]) {
     string input;
@@ -152,6 +153,8 @@ int main(int argc, char *argv[]) {
         }
         outputFile.close();
     }//if doesn't already exist, create 488MB file : memfile.txt
+
+    mainInfo.frame.push_back(0);
 
     while(true){
         restart:
@@ -429,22 +432,19 @@ void createProcess(){
     createPage(process);
     process->totalPageRemainSpace = 2097152;
     process->currentPage = process->pageTable[0];
+    process->currentPage.frameNumber = lowestFrameNum();
+    int framesUsed = mainInfo.frame[0]-(mainInfo.frame.size()-1);
     //assigning frame number
-    if(commandInput.pageSize * mainInfo.frame >= 67108864) {
+    if(commandInput.pageSize * framesUsed >= 67108864) {
         //if the amount of frames in use is more than there are in RAM
-        if(commandInput.pageSize * mainInfo.frame <= 536870912) {
-            
-            switchMem(&(process->currentPage), mainInfo.frame);
-            
+        if(commandInput.pageSize * framesUsed <= 536870912){
+
+            switchMem(&(process->currentPage),process->currentPage.frameNumber);
         } else {
             //TRYING TO USE MORE MEM THAN AVAILABLE
             exit(0);
         }
-    } else {
-        process->currentPage.frameNumber = mainInfo.frame;
     }
-
-    mainInfo.frame++;
 
     MMUObject codeMMU;
     codeMMU.pid = process->pid;
@@ -649,9 +649,22 @@ void terminatePID(int pid){
             ++it;
         }
     }
+
+    //remove from process map, if the pid does not exist in map
+    //this line will have no effect
+    processTable.table.erase(pid);
+
+    //remove from frameTable and push back the free frameNumber
+    for(auto const& loc : frameTable.table){
+        if(loc.second.pid == pid){
+            mainInfo.frame.push_back(loc.first);
+            frameTable.table.erase(loc.first);
+        }
+    }
 }
 
 void freeVariable(int pid, string name) {
+    MMUObject mmu = mmuTable.table[to_string(pid)+name];
     MMUObject freeSpace;
     freeSpace.name = "freeSpace";
     freeSpace.pid = pid;
@@ -683,6 +696,9 @@ void freeVariable(int pid, string name) {
         }
     }
     mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
+
+    Process *process = processTable.table[pid];
+    freeFromPage(process,mmu);
 }
 
 void createPage(Process *process){
@@ -701,7 +717,6 @@ void createPage(Process *process){
 
 void pageHandler(Process *process, MMUObject mmu){
     int remainData = mmu.size;
-    int dataStored = 0;
     //check if there is enough space in all pages
     if(remainData > process->totalPageRemainSpace){
         cout << "no more space in page" << endl;
@@ -744,33 +759,57 @@ void pageHandler(Process *process, MMUObject mmu){
             process->currentPage.freeSpace = 0;
             frameTable.table[process->currentPage.frameNumber] = process->currentPage;
             process->pageTable[process->currentPage.pageNumber] = process->currentPage;
-
+            //move to next page
+            //check if there is enough space in all pages
             while(process->currentPage.freeSpace == 0) {
                 process->currentPage = process->pageTable[(process->currentPage.pageNumber + 1) % process->pages];
             }
-            
-            if(commandInput.pageSize * mainInfo.frame >= 67108864) {
-                if(commandInput.pageSize * mainInfo.frame <= 536870912) {
-            
-                    switchMem(&(process->currentPage), mainInfo.frame);
-            
+            process->currentPage.frameNumber = lowestFrameNum();
+            int framesUsed = mainInfo.frame[0]-(mainInfo.frame.size()-1);
+            if(commandInput.pageSize * framesUsed >= 67108864) {
+                if(commandInput.pageSize * framesUsed <= 536870912) {
+
+                    switchMem(&(process->currentPage), process->currentPage.frameNumber);
+
                 } else {
-            //TRYING TO USE MORE MEM THAN AVAILABLE
+                    //TRYING TO USE MORE MEM THAN AVAILABLE
                     exit(0);
-               }
-            } else {
-                process->currentPage.frameNumber = mainInfo.frame;
-            }
-                process->currentPage.frameNumber = mainInfo.frame;
-                mainInfo.frame++;
+                }
             }
         }
+    }
 
     //update the mmu in the mmuTable
     mmuTable.table[mmu.key] = mmu;
 }
 
-void freeFromPage(Process process, MMUObject mmu){
+void freeFromPage(Process *process, MMUObject mmu){
+
+    int pageNum;
+    PageUnit page;
+    int sizeIn;
+    //Adding back for both space.
+
+    for(auto const& loc : mmu.pageInfo){
+        pageNum = loc.first;
+        sizeIn = loc.second;
+
+        page = process->pageTable[pageNum];
+        page.freeSpace += sizeIn;
+        process->totalPageRemainSpace += sizeIn;
+
+        //if the page is empty after freeing, remove from frameTable
+        if(page.freeSpace == page.pageSize){
+            int frameNumber = page.frameNumber;
+            frameTable.table.erase(frameNumber);
+            page.frameNumber = -1; // means the page is empty and removed from the frameTable
+            mainInfo.frame.push_back(frameNumber);
+        }
+
+        process->pageTable[pageNum] = page;
+    }
+
+    processTable.table[process->pid] = process;
 
 }
 
@@ -792,11 +831,11 @@ void switchMem(PageUnit* page, int fnumber) {
                     //Hijacked excerpted code from MMUprint
                     sort( pairs.begin(), pairs.end(), compareEntry );
                     for(int i=0; i<pairs.size(); i++) {
-                         fmem.seekp(pos);
-                         if(pairs[i].second.pid ==pageLoc.second.pid) {
+                        fmem.seekp(pos);
+                        if(pairs[i].second.pid ==pageLoc.second.pid) {
                             //THIS GETS YOU ALL THE MMU OBJECTS THAT BELONG TO THE PID
                             //pos = pos + pairs[i].second.size;
-                         }
+                        }
                     }
 
 
@@ -822,10 +861,10 @@ void printPage(){
             if (pageLoc.second.frameNumber != -1) {
                 if(pageLoc.second.inMem != 1) {
                     printf("\x1b[31m" "| %4d | %11d | %12d  \n" "\x1b[0m", processLoc.second->pid, pageLoc.second.pageNumber,
-                       pageLoc.second.frameNumber);
+                           pageLoc.second.frameNumber);
                 }else {
                     printf("| %4d | %11d | %12d  \n", processLoc.second->pid, pageLoc.second.pageNumber,
-                       pageLoc.second.frameNumber);
+                           pageLoc.second.frameNumber);
                 }
             }
         }
@@ -912,4 +951,23 @@ bool isFloat( string myString ) {
     iss >> noskipws >> f; // noskipws considers leading whitespace invalid
     // Check the entire string was consumed and if either failbit or badbit is set
     return iss.eof() && !iss.fail();
+}
+
+int lowestFrameNum(){
+    //the vector[0] is the main number to get the new frame number
+    //the rest numbers are the numbers which were used before, then put back to the vector
+    int min = mainInfo.frame[0];
+    int loc = 0;
+    for(int i=0;i<mainInfo.frame.size();i++){
+        if(mainInfo.frame[i] < min){
+            min = mainInfo.frame[i];
+            loc = i;
+        }
+    }
+    if(min == mainInfo.frame[0]){
+        mainInfo.frame[0] += 1;
+    }else{
+        mainInfo.frame.erase(mainInfo.frame.begin()+loc);
+    }
+    return min;
 }
