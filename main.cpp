@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <vector>
 #include <fstream>
+#include <sstream>
 
 //This is a CPP that will be compiled under c++ standard 11
 //compilable with g++ -o main main.cpp -std=c++11
@@ -23,8 +24,13 @@ struct CommandInput {
 struct MMUObject {
     int pageNumber;
     int frameNumber;
+    int physicalAddress;
     int pid;
     int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+    char charValue;
+    short shortValue;
+    int intValue;
+    long doubleValue;
     string name;
     int address;
     int size;
@@ -68,6 +74,14 @@ struct ProcessTable{
     map<int, Process*> table; //key: pid, value: process struct
 }processTable;
 
+struct VariableObject {
+    int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+    char charValue;
+    short shortValue;
+    int intValue;
+    long doubleValue;
+};
+
 const string COMMAND_NAME_EXIT = "exit";
 const string COMMAND_NAME_CREATE = "create";
 const string COMMAND_LINE_BREAK = "";
@@ -89,6 +103,8 @@ bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>
 bool findExistingVariable(int pid, string name);
 void freeVariable(int pid, string name);
 void printProcesses();
+int findExistingVariableType(int pid, string name);
+void setValues(int pid, string name, int offset, vector<VariableObject> values);
 
 int main(int argc, char *argv[]) {
     string input;
@@ -159,6 +175,12 @@ int main(int argc, char *argv[]) {
             createProcess();
         }else if (inpv[0] == COMMAND_LINE_BREAK){
             //do nothing
+            /*uint8_t *mem = mainInfo.mem;
+            char *d = (char*) (mem);
+            d[0] = 'g';
+
+            char *j = (char*)(mem);
+            cout <<  j[0] << endl;*/
         } else if(inpv[0] == "print"){
             if(inpv.size() != 2) {
                 cout<< "print command must have mmu or page arguments"<<endl;
@@ -174,8 +196,7 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 cout << "The inputted object to be printed doesn't exist" << endl;
-            }//interior print conditionals
-
+            }
         } else if(inpv[0] == "allocate") {
             if(inpv.size() != 5) {
                 cout<< "allocate requires 5 arguments"<<endl;
@@ -188,13 +209,10 @@ int main(int argc, char *argv[]) {
                     } else {
                         cout << "There is already a variable with that name that exists with the given PID" << endl;
                     }
-
                 } else {
                     cout << "The provided PID has not been created yet." << endl;
                 }
-
             }
-            //terminate <PID>
         } else if (inpv[0] == "terminate") {
             if(inpv.size() != 2) {
                 cout<<"terminate requires one argument "<<endl;
@@ -206,6 +224,69 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 cout << "The provided PID must be an integer" << endl;
+            }
+        } else if(inpv[0] == "set") {
+            if(inpv.size() != 5){
+                if(isNumber(inpv[1]) && isNumber(inpv[3])){
+                    if(findExistingVariable(stoi(inpv[1]), inpv[2])){
+                        //setValues(int pid, string name, int offset, vector<T> values)
+                        int variableType = findExistingVariableType(stoi(inpv[1]), inpv[2]);
+                        vector<VariableObject> heldValues;
+                        for(int i=4; i<inpv.size(); i++) {
+                            if(variableType == 1 && inpv[i].length()>1) {
+                                cout << "The provided char argument has more than one char" << endl;
+                                continue;
+                            } else if(variableType == 2 && !isNumber(inpv[i])){
+                                cout << "The provided short must be a number" << endl;
+                                continue;
+                            } else if(variableType == 2) {
+                                //short error checking
+                                //https://stackoverflow.com/questions/5834439/validate-string-within-short-range
+                                istringstream istr(inpv[i]);
+                                short s;
+                                if ((istr >> s) and istr.eof()){
+                                } else {
+                                    cout << "the provided short is not a correct short" << endl;
+                                }
+                            }else if(variableType == 3 && !isNumber(inpv[i])){
+                                cout << "The provided int must be a number" << endl;
+                                continue;
+                            } else if(variableType == 4) {
+                                //helped with coming up with double checker
+                                //https://stackoverflow.com/questions/29169153/how-do-i-verify-a-string-is-valid-double-even-if-it-has-a-point-in-it
+                                try {
+                                    stod(inpv[i]);
+                                } catch (exception e){
+                                    cout << "The provided double must be a valid double" << endl;
+                                    continue;
+                                }
+                            }
+                            VariableObject variableObject;
+                            variableObject.typeCode = variableType;
+                            //0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+                            //looked up switch syntax, can never remember it
+                            //http://en.cppreference.com/w/cpp/language/switch
+                            switch(variableType){
+                                case 1 : variableObject.charValue = inpv[i].at(0);
+                                    break;
+                                case 2 : variableObject.shortValue = stoi(inpv[i]);
+                                    break;
+                                case 3 : variableObject.intValue = stoi(inpv[i]);
+                                    break;
+                                case 4 : variableObject.doubleValue = stod(inpv[i]);
+                                    break;
+                            }
+                            heldValues.push_back(variableObject);
+                        }
+                        setValues(stoi(inpv[1]), inpv[2], stoi(inpv[3]), heldValues);
+                    } else {
+                        cout << "The provided PID and Variable has not been created yet." << endl;
+                    }
+                } else {
+                    cout << "The given PID and offset must be numbers" << endl;
+                }
+            } else {
+                cout << "There must be at least 4 arguments for the set command" << endl;
             }
         } else if(inpv[0] == "free") {
             if(isNumber(inpv[1])){
@@ -220,7 +301,6 @@ int main(int argc, char *argv[]) {
         } else {
             cout << input << " :: invalid input" << endl;
         }
-
     }
     return 0;
 }
@@ -294,7 +374,6 @@ void createProcess(){
         if(commandInput.pageSize * mainInfo.frame <= 536870912) {
             //greater than RAM but less than memory
             //switch a page to memory, and put this one on the RAM i.e. switch one on RAM to on mem, write its values
-
             process->currentPage.frameNumber = mainInfo.frame;
         } else {
             //TRYING TO USE MORE MEM THAN AVAILABLE
@@ -470,6 +549,17 @@ bool findExistingVariable(int pid, string name) {
     return false;
 }
 
+int findExistingVariableType(int pid, string name) {
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.second.name!="freeSpace" && loc.second.pid==pid && loc.second.name == name) {
+            return loc.second.typeCode;
+        }
+    }
+}
+
 void terminatePID(int pid){
     //different type of loop to go trough all entries of map, this is necessary
     //because the old loop
@@ -631,5 +721,11 @@ void printPage(){
 void printProcesses() {
     for (auto const& processLoc : processTable.table) {
         cout << processLoc.second->pid << endl;
+    }
+}
+
+void setValues(int pid, string name, int offset, vector<VariableObject> values) {
+    for(int i=0; i<values.size(); i++){
+
     }
 }
