@@ -429,16 +429,19 @@ void createProcess(){
     freeSpace.key = to_string(freeSpace.pid) + freeSpace.name + to_string(freeSpace.address);
     mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
 
+
+    //pages and their frames should NOT be initialized UNLESS they're getting data
+
     createPage(process);
     process->totalPageRemainSpace = 2097152;
     process->currentPage = process->pageTable[0];
     process->currentPage.frameNumber = lowestFrameNum();
     int framesUsed = mainInfo.frame[0]-(mainInfo.frame.size()-1);
     //assigning frame number
-    if(commandInput.pageSize * framesUsed >= 67108864) {
+    if(commandInput.pageSize * process->currentPage.frameNumber >= 67108864) {
         //if the amount of frames in use is more than there are in RAM
         if(commandInput.pageSize * framesUsed <= 536870912){
-
+            //this should actually only happen if the frame in question is in memory
             switchMem(&(process->currentPage),process->currentPage.frameNumber);
         } else {
             //TRYING TO USE MORE MEM THAN AVAILABLE
