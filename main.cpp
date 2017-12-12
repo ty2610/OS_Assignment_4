@@ -29,6 +29,8 @@ struct MMUObject {
     int address;
     int size;
     string key;
+    int physicalAddr;
+    map<int, int> pageInfo; //map<pageNumber, sizeInThatPage>
 };
 
 struct PageUnit {
@@ -81,6 +83,7 @@ bool findExistingPID(int pid);
 void terminatePID(int pid);
 void createPage(Process *process);
 void pageHandler(Process *process, MMUObject mmu);
+void freeFromPage(Process process, MMUObject mmu);
 void printPage();
 bool compareEntry( std::pair<string, MMUObject>& a, std::pair<string, MMUObject>& b);
 bool findExistingVariable(int pid, string name);
@@ -196,13 +199,13 @@ int main(int argc, char *argv[]) {
             if(inpv.size() != 2) {
                 cout<<"terminate requires one argument "<<endl;
             } else if(isNumber(inpv[1])){
-                 if(findExistingPID(stoi(inpv[1]))){
-                     terminatePID(stoi(inpv[1]));
-                 } else {
-                     cout << "The provided PID has not been created yet." << endl;
-                 }
+                if(findExistingPID(stoi(inpv[1]))){
+                    terminatePID(stoi(inpv[1]));
+                } else {
+                    cout << "The provided PID has not been created yet." << endl;
+                }
             } else {
-                    cout << "The provided PID must be an integer" << endl;
+                cout << "The provided PID must be an integer" << endl;
             }
         } else if(inpv[0] == "free") {
             if(isNumber(inpv[1])){
@@ -215,7 +218,7 @@ int main(int argc, char *argv[]) {
                 cout << "The provided PID must be an integer" << endl;
             }
         } else {
-                cout << input << " :: invalid input" << endl;
+            cout << input << " :: invalid input" << endl;
         }
 
     }
@@ -291,7 +294,7 @@ void createProcess(){
         if(commandInput.pageSize * mainInfo.frame <= 536870912) {
             //greater than RAM but less than memory
             //switch a page to memory, and put this one on the RAM i.e. switch one on RAM to on mem, write its values
-            
+
             process->currentPage.frameNumber = mainInfo.frame;
         } else {
             //TRYING TO USE MORE MEM THAN AVAILABLE
@@ -300,7 +303,7 @@ void createProcess(){
     } else {
         process->currentPage.frameNumber = mainInfo.frame;
     }
-    
+
     mainInfo.frame++;
 
     MMUObject codeMMU;
@@ -530,6 +533,7 @@ void createPage(Process *process){
 
 void pageHandler(Process *process, MMUObject mmu){
     int remainData = mmu.size;
+    int dataStored = 0;
     //check if there is enough space in all pages
     if(remainData > process->totalPageRemainSpace){
         cout << "no more space in page" << endl;
@@ -537,14 +541,31 @@ void pageHandler(Process *process, MMUObject mmu){
     }
 
     while(process->currentPage.freeSpace == 0){
-        process->currentPage = process->pageTable[process->currentPage.pageNumber+1];
+        process->currentPage = process->pageTable[(process->currentPage.pageNumber+1)%process->pages];
     }
+
+    //the free space start from freeAddr
+    int freeAddr = commandInput.pageSize - process->currentPage.freeSpace;
 
     mmu.pageNumber = process->currentPage.pageNumber;
     mmu.frameNumber = process->currentPage.frameNumber;
+    mmu.physicalAddr = mmu.frameNumber * commandInput.pageSize + (freeAddr);
 
     while(remainData > 0){
+        //mmu pageInfo change here,
+        //for one mmu, the pageInfo map tells us how much data we stored in which page
+        if(remainData < process->currentPage.freeSpace){
+            //if the remainData is smaller, the page could handle the data and store data
+            //it means the while loop will stop
+            mmu.pageInfo[process->currentPage.pageNumber] = remainData;
+        }else{
+            //if the freespace is smaller, the page could not store that much data,
+            //it will only store whatever amount of free space it owns, and keep running the loop
+            mmu.pageInfo[process->currentPage.pageNumber] = process->currentPage.freeSpace;
+        }
+
         remainData -= process->currentPage.freeSpace;
+
         if(remainData < 0){
             process->totalPageRemainSpace -= remainData *(-1);
             process->currentPage.freeSpace = remainData *(-1);
@@ -557,11 +578,21 @@ void pageHandler(Process *process, MMUObject mmu){
             process->pageTable[process->currentPage.pageNumber] = process->currentPage;
             //move to next page
             //check if there is enough space in all pages
-            process->currentPage = process->pageTable[(process->currentPage.pageNumber+1)%process->pages];
+            while(process->currentPage.freeSpace == 0) {
+                process->currentPage = process->pageTable[(process->currentPage.pageNumber + 1) % process->pages];
+            }
+            //frameNumber need to be fixed
             process->currentPage.frameNumber = mainInfo.frame;
             mainInfo.frame++;
         }
     }
+
+    //update the mmu in the mmuTable
+    mmuTable.table[mmu.key] = mmu;
+}
+
+void freeFromPage(Process process, MMUObject mmu){
+
 }
 
 void switchMem(PageUnit* page) {
