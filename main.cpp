@@ -25,13 +25,14 @@ struct CommandInput {
 struct MMUObject {
     int pageNumber;
     int frameNumber;
-    int physicalAddress;
     int pid;
-    int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+    int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
     char charValue;
     short shortValue;
     int intValue;
-    long doubleValue;
+    double doubleValue;
+    long longValue;
+    float floatValue;
     string name;
     int address;
     int size;
@@ -76,11 +77,13 @@ struct ProcessTable{
 }processTable;
 
 struct VariableObject {
-    int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+    int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
     char charValue;
     short shortValue;
     int intValue;
-    long doubleValue;
+    double doubleValue;
+    long longValue;
+    float floatValue;
 };
 
 const string COMMAND_NAME_EXIT = "exit";
@@ -106,6 +109,8 @@ void freeVariable(int pid, string name);
 void printProcesses();
 int findExistingVariableType(int pid, string name);
 void setValues(int pid, string name, int offset, vector<VariableObject> values);
+string findExistingVariableKey(int pid, string name);
+bool isFloat( string myString );
 
 int main(int argc, char *argv[]) {
     string input;
@@ -149,6 +154,7 @@ int main(int argc, char *argv[]) {
     }//if doesn't already exist, create 488MB file : memfile.txt
 
     while(true){
+        restart:
         cout << ">  ";
 
         string input;
@@ -177,12 +183,6 @@ int main(int argc, char *argv[]) {
             createProcess();
         }else if (inpv[0] == COMMAND_LINE_BREAK){
             //do nothing
-            /*uint8_t *mem = mainInfo.mem;
-            char *d = (char*) (mem);
-            d[0] = 'g';
-
-            char *j = (char*)(mem);
-            cout <<  j[0] << endl;*/
         } else if(inpv[0] == "print"){
             if(inpv.size() != 2) {
                 cout<< "print command must have mmu or page arguments"<<endl;
@@ -205,15 +205,20 @@ int main(int argc, char *argv[]) {
             } else if(!isNumber(inpv[1]) && !isNumber(inpv[4])){
                 cout << "The inputted PID and amount must be an integer" << endl;
             } else {
-                if(findExistingPID(stoi(inpv[1]))){
-                    if(!findExistingVariable(stoi(inpv[1]),inpv[2])){
-                        allocateVariable(stoi(inpv[1]),inpv[2],inpv[3],stoi(inpv[4]));
+                if(stoi(inpv[4])>0) {
+                    if(findExistingPID(stoi(inpv[1]))){
+                        if(!findExistingVariable(stoi(inpv[1]),inpv[2])){
+                            allocateVariable(stoi(inpv[1]),inpv[2],inpv[3],stoi(inpv[4]));
+                        } else {
+                            cout << "There is already a variable with that name that exists with the given PID" << endl;
+                        }
                     } else {
-                        cout << "There is already a variable with that name that exists with the given PID" << endl;
+                        cout << "The provided PID has not been created yet." << endl;
                     }
                 } else {
-                    cout << "The provided PID has not been created yet." << endl;
+                    cout << "You must allocate more than 0" << endl;
                 }
+
             }
         } else if (inpv[0] == "terminate") {
             if(inpv.size() != 2) {
@@ -228,7 +233,7 @@ int main(int argc, char *argv[]) {
                 cout << "The provided PID must be an integer" << endl;
             }
         } else if(inpv[0] == "set") {
-            if(inpv.size() != 5){
+            if(inpv.size() > 4){
                 if(isNumber(inpv[1]) && isNumber(inpv[3])){
                     if(findExistingVariable(stoi(inpv[1]), inpv[2])){
                         //setValues(int pid, string name, int offset, vector<T> values)
@@ -237,10 +242,12 @@ int main(int argc, char *argv[]) {
                         for(int i=4; i<inpv.size(); i++) {
                             if(variableType == 1 && inpv[i].length()>1) {
                                 cout << "The provided char argument has more than one char" << endl;
-                                continue;
+                                //needed to get to top of while loop
+                                //https://stackoverflow.com/questions/245742/examples-of-good-gotos-in-c-or-c
+                                goto restart;
                             } else if(variableType == 2 && !isNumber(inpv[i])){
                                 cout << "The provided short must be a number" << endl;
-                                continue;
+                                goto restart;
                             } else if(variableType == 2) {
                                 //short error checking
                                 //https://stackoverflow.com/questions/5834439/validate-string-within-short-range
@@ -249,23 +256,45 @@ int main(int argc, char *argv[]) {
                                 if ((istr >> s) and istr.eof()){
                                 } else {
                                     cout << "the provided short is not a correct short" << endl;
+                                    goto restart;
                                 }
-                            }else if(variableType == 3 && !isNumber(inpv[i])){
+                            } else if(variableType == 3 && !isNumber(inpv[i])){
                                 cout << "The provided int must be a number" << endl;
-                                continue;
-                            } else if(variableType == 4) {
+                                goto restart;
+                            } else if(variableType == 3) {
+                                try{
+                                    stoi(inpv[i]);
+                                } catch(exception e) {
+                                    cout << "The provided int is incorrect" << endl;
+                                    goto restart;
+                                }
+                            }else if(variableType == 4) {
                                 //helped with coming up with double checker
                                 //https://stackoverflow.com/questions/29169153/how-do-i-verify-a-string-is-valid-double-even-if-it-has-a-point-in-it
                                 try {
                                     stod(inpv[i]);
                                 } catch (exception e){
                                     cout << "The provided double must be a valid double" << endl;
-                                    continue;
+                                    goto restart;
+                                }
+                            } else if (variableType == 5) {
+                                try {
+                                    stol(inpv[i]);
+                                } catch (exception e){
+                                    cout << "The provided long must be a valid long" << endl;
+                                    goto restart;
+                                }
+                            } else if(variableType == 6 ) {
+                                try {
+                                    stof(inpv[i]);
+                                } catch (exception e){
+                                    cout << "The provided float must is incorrectly formatted" << endl;
+                                    goto restart;
                                 }
                             }
                             VariableObject variableObject;
                             variableObject.typeCode = variableType;
-                            //0=text/global/stack/freespace 1=char 2=short 3=int/float 4=long/double
+                            //0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
                             //looked up switch syntax, can never remember it
                             //http://en.cppreference.com/w/cpp/language/switch
                             switch(variableType){
@@ -277,10 +306,40 @@ int main(int argc, char *argv[]) {
                                     break;
                                 case 4 : variableObject.doubleValue = stod(inpv[i]);
                                     break;
+                                case 5 : variableObject.longValue = stol(inpv[i]);
+                                    break;
+                                case 6 : variableObject.floatValue = stof(inpv[i]);
+                                    break;
                             }
                             heldValues.push_back(variableObject);
                         }
-                        setValues(stoi(inpv[1]), inpv[2], stoi(inpv[3]), heldValues);
+                        int totalUsedBytes = 0;
+                        int offset = stoi(inpv[3]);
+                        switch(variableType){
+                            case 1 : totalUsedBytes = heldValues.size();
+                                break;
+                            case 2 : totalUsedBytes = heldValues.size() * 2;
+                                offset = offset * 2;
+                                break;
+                            case 3 : totalUsedBytes = heldValues.size() * 4;
+                                offset = offset * 4;
+                                break;
+                            case 4 : totalUsedBytes = heldValues.size() * 8;
+                                offset = offset * 8;
+                                break;
+                            case 5 : totalUsedBytes = heldValues.size() * 8;
+                                offset = offset * 8;
+                                break;
+                            case 6 : totalUsedBytes = heldValues.size() * 4;
+                                offset = offset * 4;
+                                break;
+                        }
+                        totalUsedBytes += offset;
+                        if(mmuTable.table.at(inpv[1]+ inpv[2]).size < totalUsedBytes){
+                            cout << "The set function goes past the allotted space created for the variable" << endl;
+                            goto restart;
+                        }
+                        setValues(stoi(inpv[1]), inpv[2], offset, heldValues);
                     } else {
                         cout << "The provided PID and Variable has not been created yet." << endl;
                     }
@@ -446,12 +505,18 @@ void allocateVariable(int pid, string name, string type, int amount) {
     } else if(type == "short") {
         stackMMU.size = amount*2;
         stackMMU.typeCode = 2;
-    } else if(type == "int" || type == "floats") {
+    } else if(type == "int") {
         stackMMU.size = amount*4;
         stackMMU.typeCode = 3;
-    } else {
+    } else if(type == "double") {
         stackMMU.size = amount*8;
         stackMMU.typeCode = 4;
+    } else if(type == "long") {
+        stackMMU.size = amount*8;
+        stackMMU.typeCode = 5;
+    } else {
+        stackMMU.size = amount*4;
+        stackMMU.typeCode = 6;
     }
 
 
@@ -558,6 +623,17 @@ int findExistingVariableType(int pid, string name) {
         //loc.second string's value
         if(loc.second.name!="freeSpace" && loc.second.pid==pid && loc.second.name == name) {
             return loc.second.typeCode;
+        }
+    }
+}
+
+string findExistingVariableKey(int pid, string name) {
+    for (auto const& loc : mmuTable.table)
+    {
+        //loc.first string (key)
+        //loc.second string's value
+        if(loc.second.name!="freeSpace" && loc.second.pid==pid && loc.second.name == name) {
+            return loc.first;
         }
     }
 }
@@ -758,7 +834,77 @@ void printProcesses() {
 }
 
 void setValues(int pid, string name, int offset, vector<VariableObject> values) {
-    for(int i=0; i<values.size(); i++){
-        //sadfasdfasdf
+    /*uint8_t *mem = mainInfo.mem;
+    char *d = (char*) (mem);
+    d[0] = 'g';
+
+    char *j = (char*)(mem);
+    cout <<  j[0] << endl;*/
+    //0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
+    char *charPointer;
+    short *shortPointer;
+    int *intPointer;
+    double *doublePointer;
+    long *longPointer;
+    float *floatPointer;
+    uint8_t *mem = mainInfo.mem;
+    MMUObject setMMUObject = mmuTable.table.at(to_string(pid)+name);
+    int location = setMMUObject.physicalAddr + offset;
+    switch(values.at(0).typeCode){
+        case 1 : charPointer = (char*) (mem+location);
+            break;
+        case 2 : shortPointer = (short*) (mem+location);
+            break;
+        case 3 : intPointer = (int*) (mem+location);
+            break;
+        case 4 : doublePointer = (double*) (mem+location);
+            break;
+        case 5 : longPointer = (long*) (mem+location);
+            break;
+        case 6 : floatPointer = (float*) (mem+location);
+            break;
     }
+    for(int i=0; i<values.size(); i++){
+        switch(values.at(0).typeCode){
+            case 1 : charPointer[i+location] = values.at(i).charValue;
+                break;
+            case 2 : shortPointer[i*2+location] = values.at(i).shortValue;
+                break;
+            case 3 : intPointer[i*4+location] = values.at(i).intValue;
+                break;
+            case 4 : doublePointer[i*8+location] = values.at(i).doubleValue;
+                break;
+            case 5 : longPointer[i*8+location] = values.at(i).longValue;
+                break;
+            case 6 : floatPointer[i*4+location] = values.at(i).floatValue;
+                break;
+        }
+    }
+
+    for(int i=0; i<values.size(); i++){
+        switch(values.at(0).typeCode){
+            case 1 : cout << charPointer[i + location] << endl;
+                break;
+            case 2 : cout << shortPointer[i*2+location] << endl;
+                break;
+            case 3 : cout << intPointer[i*4 + location] << endl;
+                break;
+            case 4 : cout << doublePointer[i*8+location] << endl;
+                break;
+            case 5 : cout << longPointer[i*8+location] << endl;
+                break;
+            case 6 : cout << floatPointer[i*4+location] << endl;
+                break;
+        }
+    }
+}
+
+//needed a string float checker
+//https://stackoverflow.com/questions/447206/c-isfloat-function
+bool isFloat( string myString ) {
+    std::istringstream iss(myString);
+    float f;
+    iss >> noskipws >> f; // noskipws considers leading whitespace invalid
+    // Check the entire string was consumed and if either failbit or badbit is set
+    return iss.eof() && !iss.fail();
 }
