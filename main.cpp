@@ -55,7 +55,7 @@ struct Process {
     int globals; //some number 0-1024 bytes
     const int stack{65536}; //stack constant in bytes
     //VarMap nums;
-    int pages = 2097152 / commandInput.pageSize;
+    int pages = 67108864 / commandInput.pageSize;
     int amountPageUsed = 0;
     PageUnit currentPage;
     map<int, PageUnit> pageTable;
@@ -491,10 +491,26 @@ void freeVariable(int pid, string name) {
     //is filled, in the physical memory and file
     freeSpace.size = mmuTable.table.at(to_string(pid)+name).size;
     freeSpace.typeCode = 0;
-    //NEED TO LOOK HERE, THE KEY IS 1024freespace, BUT THAT ALREADY EXISTS, MAYBE SOMETHING ELSE MUST BE INCLUDED WITH
-    //THE KEY. PROBABLY THE ADDRESS
     freeSpace.key = to_string(pid) + freeSpace.name + to_string(freeSpace.address);
     mmuTable.table.erase(to_string(pid)+name);
+    for (auto it = mmuTable.table.begin(); it != mmuTable.table.end(); ) {
+        //loc.first string (key)
+        //loc.second string's value
+        if(it->second.name=="freeSpace" && freeSpace.pid == it->second.pid) {
+            if((it->second.address + it->second.size) == freeSpace.address){
+                freeSpace.size += it->second.size;
+                freeSpace.address = it->second.address;
+                it = mmuTable.table.erase(it);
+            } else if((freeSpace.address + freeSpace.size) == it->second.address){
+                freeSpace.size += it->second.size;
+                it = mmuTable.table.erase(it);
+            } else {
+                ++it;
+            }
+        } else {
+            ++it;
+        }
+    }
     mmuTable.table.insert(std::pair<string, MMUObject>(freeSpace.key,freeSpace));
 }
 
