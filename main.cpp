@@ -537,7 +537,12 @@ void allocateVariable(int pid, string name, string type, int amount) {
 
     Process *currentProcess = processTable.table[pid];
     pageHandler(currentProcess,stackMMU);
+
     processTable.table[currentProcess->pid] = currentProcess;
+
+    MMUObject mmu = mmuTable.table[stackMMU.key];
+
+    cout << mmu.physicalAddr << endl;
 }
 
 string findFreeSpaceMMU(int size, int pid) {
@@ -770,6 +775,8 @@ void pageHandler(Process *process, MMUObject mmu){
 
     //update the mmu in the mmuTable
     mmuTable.table[mmu.key] = mmu;
+
+
 }
 
 void freeFromPage(Process *process, MMUObject mmu){
@@ -803,7 +810,7 @@ void freeFromPage(Process *process, MMUObject mmu){
 }
 
 void switchMem(PageUnit* page, int fnumber) {
-    int swp = 0; 
+    int swp = 0;
     fstream fmem;
     fmem.open("memfile.txt");
     long pos = fmem.tellp() + long(fnumber*commandInput.pageSize);
