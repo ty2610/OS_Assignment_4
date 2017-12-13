@@ -347,6 +347,7 @@ int main(int argc, char *argv[]) {
                             cout << "The set function goes past the allotted space created for the variable" << endl;
                             goto restart;
                         }
+                        
                         setValues(stoi(inpv[1]), inpv[2], offset, heldValues);
                     } else {
                         cout << "The provided PID and Variable has not been created yet." << endl;
@@ -891,6 +892,7 @@ void setValues(int pid, string name, int offset, vector<VariableObject> values) 
         case 4 : doublePointer = (double*) (mem+location);
             break;
         case 5 : longPointer = (long*) (mem+location);
+            cout<< "longPointer for num is "<<longPointer<<endl;
             break;
         case 6 : floatPointer = (float*) (mem+location);
             break;
@@ -963,27 +965,35 @@ void printVariable(int pid, string name) {
             amount = variableMMUObject.size/4;
             break;
     }
-
+    
     for(int i=0; i<amount; i++){
         if(i==4){
             cout << "... " << "[" << amount << " items]";
             goto endOfPrint;
         }
+        
         switch(variableMMUObject.typeCode){
-            case 1 : cout << charPointer[i];
+            case 1 : cout << *charPointer;
+                charPointer = (char*) (mem+variableMMUObject.physicalAddr + 1 + (1*i));
                 break;
-            case 2 : cout << shortPointer[i*2];
+            case 2 : cout << *shortPointer;
+                shortPointer = (short*) (mem+variableMMUObject.physicalAddr + 2 + (2*i));
                 break;
-            case 3 : cout << intPointer[i*4];
+            case 3 : cout << *intPointer;
+                intPointer = (int*) (mem+variableMMUObject.physicalAddr + 4 + (4*i));
                 break;
-            case 4 : cout << doublePointer[i*8];
+            case 4 : cout << *doublePointer;
+                doublePointer = (double*) (mem+variableMMUObject.physicalAddr + 8 + (8*i));
                 break;
-            case 5 : cout << longPointer[i*8];
+            case 5 : cout << *longPointer;
+                longPointer = (long*)(mem+variableMMUObject.physicalAddr + 8+(8*i));
                 break;
-            case 6 : cout << floatPointer[i*4];
+            case 6 : cout << *floatPointer;
+                floatPointer = (float*) (mem+variableMMUObject.physicalAddr + 4 + (4*i));
                 break;
         }
-        if(amount-1!=1){
+
+        if((amount-i)-1!=0){
             cout << ", ";
         }
 
