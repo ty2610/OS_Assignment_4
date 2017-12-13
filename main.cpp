@@ -173,8 +173,6 @@ int main(int argc, char *argv[]) {
         }//CREATES AN INDEXIBLE INPUT VECTOR
 
 
-
-
         if(inpv[0] == COMMAND_NAME_EXIT){
             cout << "Goodbye" << endl;
             break;
@@ -427,10 +425,6 @@ void createProcess(){
     freeSpace.name = "freeSpace";
     freeSpace.pid = process->pid;
     freeSpace.address = 0;
-    //arbitrary size, need 32 created threads to go over size
-    //this is temporary until file is implemented
-    //this number will need to increase until the collective free space
-    //is filled, in the physical memory and file
     freeSpace.size = 2097152;
     freeSpace.typeCode = 0;
     freeSpace.key = to_string(freeSpace.pid) + freeSpace.name + to_string(freeSpace.address);
@@ -809,8 +803,7 @@ void freeFromPage(Process *process, MMUObject mmu){
 }
 
 void switchMem(PageUnit* page, int fnumber) {
-    //method to switch input process out of memory, and another process into memory
-    int swp = 0; //switched page accomplished
+    int swp = 0; 
     fstream fmem;
     fmem.open("memfile.txt");
     long pos = fmem.tellp() + long(fnumber*commandInput.pageSize);
@@ -823,17 +816,15 @@ void switchMem(PageUnit* page, int fnumber) {
                     for (auto itr = mmuTable.table.begin(); itr != mmuTable.table.end(); ++itr) {
                         pairs.push_back(*itr);
                     }
-                    //Hijacked excerpted code from MMUprint
+                    //excerpted code from MMUprint
                     sort( pairs.begin(), pairs.end(), compareEntry );
                     for(int i=0; i<pairs.size(); i++) {
                         fmem.seekp(pos);
                         if(pairs[i].second.pid ==pageLoc.second.pid) {
-                            //THIS GETS YOU ALL THE MMU OBJECTS THAT BELONG TO THE PID
-                            //pos = pos + pairs[i].second.size;
+                            fmem<<pairs[i].second.address;
                         }
                     }
-
-
+                    fmem.close();
                     //write into "mem" starting at the index that the current page was taken out of (e.g. frame * size)
                     page->frameNumber = pageLoc.second.frameNumber;
                     pageLoc.second.frameNumber = fnumber;
