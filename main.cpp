@@ -25,14 +25,9 @@ struct CommandInput {
 struct MMUObject {
     int pageNumber;
     int frameNumber;
+    bool set;
     int pid;
     int typeCode;//0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
-    char charValue;
-    short shortValue;
-    int intValue;
-    double doubleValue;
-    long longValue;
-    float floatValue;
     string name;
     int address;
     int size;
@@ -109,9 +104,9 @@ void freeVariable(int pid, string name);
 void printProcesses();
 int findExistingVariableType(int pid, string name);
 void setValues(int pid, string name, int offset, vector<VariableObject> values);
-string findExistingVariableKey(int pid, string name);
-bool isFloat( string myString );
 int lowestFrameNum();
+void printVariable(int pid, string name);
+string trimWhiteSpace(string str);
 
 int main(int argc, char *argv[]) {
     string input;
@@ -162,6 +157,7 @@ int main(int argc, char *argv[]) {
 
         string input;
         getline(cin,input);
+        input = trimWhiteSpace(input);
         vector<string> inpv;
         int start = 0;
         int end = input.find(" ");
@@ -187,17 +183,28 @@ int main(int argc, char *argv[]) {
         }else if (inpv[0] == COMMAND_LINE_BREAK){
             //do nothing
         } else if(inpv[0] == "print"){
-            if(inpv.size() != 2) {
-                cout<< "print command must have mmu or page arguments"<<endl;
-            } else if (inpv[1] == "mmu") {
+            if(inpv.size() < 2 || inpv.size() > 3) {
+                cout<< "print command must have 2 or 3 mmu or page arguments"<<endl;
+            } else if (inpv[1] == "mmu" && inpv.size() == 2) {
                 printMMU();
-            } else if (inpv[1] == "page") {
+            } else if (inpv[1] == "page" && inpv.size() == 2) {
                 printPage();
-            } else if(inpv[1] == "processes"){
+            } else if(inpv[1] == "processes" && inpv.size() == 2){
                 if(processTable.table.size()==0) {
                     cout << "There are no processes currently running" << endl;
                 } else {
                     printProcesses();
+                }
+            } else if(isNumber(inpv[1])) {
+                if(findExistingVariable(stoi(inpv[1]),inpv[2])){
+                    if(mmuTable.table.at(inpv[1]+inpv[2]).set){
+                        printVariable(stoi(inpv[1]),inpv[2]);
+                    } else {
+                        cout << "The pid and variable combination has not had a value set yet" << endl;
+                    }
+
+                } else {
+                    cout << "The provided pid and name combination doesn't exist" << endl;
                 }
             } else {
                 cout << "The inputted object to be printed doesn't exist" << endl;
@@ -521,7 +528,7 @@ void allocateVariable(int pid, string name, string type, int amount) {
         stackMMU.size = amount*4;
         stackMMU.typeCode = 6;
     }
-
+    stackMMU.set = false;
 
     stackMMU.key = to_string(stackMMU.pid) + stackMMU.name;
     string freeSpaceMMUKey = findFreeSpaceMMU(stackMMU.size, stackMMU.pid);
@@ -630,17 +637,6 @@ int findExistingVariableType(int pid, string name) {
     }
 }
 
-string findExistingVariableKey(int pid, string name) {
-    for (auto const& loc : mmuTable.table)
-    {
-        //loc.first string (key)
-        //loc.second string's value
-        if(loc.second.name!="freeSpace" && loc.second.pid==pid && loc.second.name == name) {
-            return loc.first;
-        }
-    }
-}
-
 void terminatePID(int pid){
     //different type of loop to go trough all entries of map, this is necessary
     //because the old loop
@@ -672,10 +668,6 @@ void freeVariable(int pid, string name) {
     freeSpace.name = "freeSpace";
     freeSpace.pid = pid;
     freeSpace.address = mmuTable.table.at(to_string(pid)+name).address;
-    //arbitraury size, need 32 created threads to go over size
-    //this is temporary until file is implemented
-    //this number will need to increase until the collective free space
-    //is filled, in the physical memory and file
     freeSpace.size = mmuTable.table.at(to_string(pid)+name).size;
     freeSpace.typeCode = 0;
     freeSpace.key = to_string(pid) + freeSpace.name + to_string(freeSpace.address);
@@ -881,13 +873,6 @@ void printProcesses() {
 }
 
 void setValues(int pid, string name, int offset, vector<VariableObject> values) {
-    /*uint8_t *mem = mainInfo.mem;
-    char *d = (char*) (mem);
-    d[0] = 'g';
-
-    char *j = (char*)(mem);
-    cout <<  j[0] << endl;*/
-    //0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
     char *charPointer;
     short *shortPointer;
     int *intPointer;
@@ -896,6 +881,7 @@ void setValues(int pid, string name, int offset, vector<VariableObject> values) 
     float *floatPointer;
     uint8_t *mem = mainInfo.mem;
     MMUObject setMMUObject = mmuTable.table.at(to_string(pid)+name);
+    mmuTable.table.at(to_string(pid)+name).set = true;
     int location = setMMUObject.physicalAddr + offset;
     switch(values.at(0).typeCode){
         case 1 : charPointer = (char*) (mem+location);
@@ -913,47 +899,20 @@ void setValues(int pid, string name, int offset, vector<VariableObject> values) 
     }
     for(int i=0; i<values.size(); i++){
         switch(values.at(0).typeCode){
-            case 1 : charPointer[i+location] = values.at(i).charValue;
+            case 1 : charPointer[i] = values.at(i).charValue;
                 break;
-            case 2 : shortPointer[i*2+location] = values.at(i).shortValue;
+            case 2 : shortPointer[i*2] = values.at(i).shortValue;
                 break;
-            case 3 : intPointer[i*4+location] = values.at(i).intValue;
+            case 3 : intPointer[i*4] = values.at(i).intValue;
                 break;
-            case 4 : doublePointer[i*8+location] = values.at(i).doubleValue;
+            case 4 : doublePointer[i*8] = values.at(i).doubleValue;
                 break;
-            case 5 : longPointer[i*8+location] = values.at(i).longValue;
+            case 5 : longPointer[i*8] = values.at(i).longValue;
                 break;
-            case 6 : floatPointer[i*4+location] = values.at(i).floatValue;
-                break;
-        }
-    }
-
-    for(int i=0; i<values.size(); i++){
-        switch(values.at(0).typeCode){
-            case 1 : cout << charPointer[i + location] << endl;
-                break;
-            case 2 : cout << shortPointer[i*2+location] << endl;
-                break;
-            case 3 : cout << intPointer[i*4 + location] << endl;
-                break;
-            case 4 : cout << doublePointer[i*8+location] << endl;
-                break;
-            case 5 : cout << longPointer[i*8+location] << endl;
-                break;
-            case 6 : cout << floatPointer[i*4+location] << endl;
+            case 6 : floatPointer[i*4] = values.at(i).floatValue;
                 break;
         }
     }
-}
-
-//needed a string float checker
-//https://stackoverflow.com/questions/447206/c-isfloat-function
-bool isFloat( string myString ) {
-    std::istringstream iss(myString);
-    float f;
-    iss >> noskipws >> f; // noskipws considers leading whitespace invalid
-    // Check the entire string was consumed and if either failbit or badbit is set
-    return iss.eof() && !iss.fail();
 }
 
 int lowestFrameNum(){
@@ -973,4 +932,76 @@ int lowestFrameNum(){
         mainInfo.frame.erase(mainInfo.frame.begin()+loc);
     }
     return min;
+}
+
+void printVariable(int pid, string name) {
+    MMUObject variableMMUObject = mmuTable.table.at(to_string(pid)+name);
+    //0=text/global/stack/freespace 1=char 2=short 3=int 4=double 5=long 6=float
+    char *charPointer;
+    short *shortPointer;
+    int *intPointer;
+    double *doublePointer;
+    long *longPointer;
+    float *floatPointer;
+    int amount = 0;
+    uint8_t *mem = mainInfo.mem;
+    switch(variableMMUObject.typeCode){
+        case 1 : charPointer = (char*) (mem+variableMMUObject.physicalAddr);
+            amount = variableMMUObject.size;
+            break;
+        case 2 : shortPointer = (short*) (mem+variableMMUObject.physicalAddr);
+            amount = variableMMUObject.size/2;
+            break;
+        case 3 : intPointer = (int*) (mem+variableMMUObject.physicalAddr);
+            amount = variableMMUObject.size/4;
+            break;
+        case 4 : doublePointer = (double*) (mem+variableMMUObject.physicalAddr);
+            amount = variableMMUObject.size/8;
+            break;
+        case 5 : longPointer = (long*) (mem+variableMMUObject.physicalAddr);
+            amount = variableMMUObject.size/8;
+            break;
+        case 6 : floatPointer = (float*) (mem+variableMMUObject.physicalAddr);
+            amount = variableMMUObject.size/4;
+            break;
+    }
+
+    for(int i=0; i<amount; i++){
+        if(i==4){
+            cout << "... " << "[" << amount << " items]";
+            goto endOfPrint;
+        }
+        switch(variableMMUObject.typeCode){
+            case 1 : cout << charPointer[i];
+                break;
+            case 2 : cout << shortPointer[i*2];
+                break;
+            case 3 : cout << intPointer[i*4];
+                break;
+            case 4 : cout << doublePointer[i*8];
+                break;
+            case 5 : cout << longPointer[i*8];
+                break;
+            case 6 : cout << floatPointer[i*4];
+                break;
+        }
+        if(amount-1!=1){
+            cout << ", ";
+        }
+
+    }
+    endOfPrint:
+    cout << endl;
+}
+
+//needed whitespace trimmer
+//https://stackoverflow.com/questions/25829143/trim-whitespace-from-a-string
+string trimWhiteSpace(string str) {
+    size_t first = str.find_first_not_of(' ');
+    if (string::npos == first)
+    {
+        return str;
+    }
+    size_t last = str.find_last_not_of(' ');
+    return str.substr(first, (last - first + 1));
 }
