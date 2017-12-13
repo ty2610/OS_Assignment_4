@@ -77,7 +77,7 @@ struct VariableObject {
     short shortValue;
     int intValue;
     double doubleValue;
-    long longValue;
+    long long longValue;
     float floatValue;
 };
 
@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
                                 }
                             } else if (variableType == 5) {
                                 try {
-                                    stol(inpv[i]);
+                                    stoll(inpv[i]);
                                 } catch (exception e){
                                     cout << "The provided long must be a valid long" << endl;
                                     goto restart;
@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
                                     break;
                                 case 4 : variableObject.doubleValue = stod(inpv[i]);
                                     break;
-                                case 5 : variableObject.longValue = stol(inpv[i]);
+                                case 5 : variableObject.longValue = stoll(inpv[i]);
                                     break;
                                 case 6 : variableObject.floatValue = stof(inpv[i]);
                                     break;
@@ -876,7 +876,7 @@ void setValues(int pid, string name, int offset, vector<VariableObject> values) 
     short *shortPointer;
     int *intPointer;
     double *doublePointer;
-    long *longPointer;
+    long long *longPointer;
     float *floatPointer;
     uint8_t *mem = mainInfo.mem;
     MMUObject setMMUObject = mmuTable.table.at(to_string(pid)+name);
@@ -891,8 +891,7 @@ void setValues(int pid, string name, int offset, vector<VariableObject> values) 
             break;
         case 4 : doublePointer = (double*) (mem+location);
             break;
-        case 5 : longPointer = (long*) (mem+location);
-            cout<< "longPointer for num is "<<longPointer<<endl;
+        case 5 : longPointer = (long long*) (mem+location);
             break;
         case 6 : floatPointer = (float*) (mem+location);
             break;
@@ -941,7 +940,7 @@ void printVariable(int pid, string name) {
     short *shortPointer;
     int *intPointer;
     double *doublePointer;
-    long *longPointer;
+    long long *longPointer;
     float *floatPointer;
     int amount = 0;
     uint8_t *mem = mainInfo.mem;
@@ -958,7 +957,7 @@ void printVariable(int pid, string name) {
         case 4 : doublePointer = (double*) (mem+variableMMUObject.physicalAddr);
             amount = variableMMUObject.size/8;
             break;
-        case 5 : longPointer = (long*) (mem+variableMMUObject.physicalAddr);
+        case 5 : longPointer = (long long*) (mem+variableMMUObject.physicalAddr);
             amount = variableMMUObject.size/8;
             break;
         case 6 : floatPointer = (float*) (mem+variableMMUObject.physicalAddr);
@@ -986,7 +985,7 @@ void printVariable(int pid, string name) {
                 doublePointer = (double*) (mem+variableMMUObject.physicalAddr + 8 + (8*i));
                 break;
             case 5 : cout << *longPointer;
-                longPointer = (long*)(mem+variableMMUObject.physicalAddr + 8+(8*i));
+                longPointer = (long long*)(mem+variableMMUObject.physicalAddr + 8+(8*i));
                 break;
             case 6 : cout << *floatPointer;
                 floatPointer = (float*) (mem+variableMMUObject.physicalAddr + 4 + (4*i));
